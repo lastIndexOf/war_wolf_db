@@ -1,0 +1,7 @@
+[package]
+name = "war_wolf_db"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+war_wolf_db_error = { path = "../war_wolf_db_error" }

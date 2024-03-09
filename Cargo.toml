@@ -1,0 +1,6 @@
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.dependencies]
+anyhow = { version = "1.0.80", features = ["backtrace"] }
