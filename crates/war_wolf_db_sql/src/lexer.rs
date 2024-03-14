@@ -2,7 +2,15 @@
 mod macros;
 mod token;
 
-use nom::branch::alt;
+use nom::{
+    branch::alt,
+    bytes::complete::tag,
+    character::complete::{alpha1, alphanumeric1},
+    combinator::{map, recognize},
+    multi::many0,
+    sequence::pair,
+    IResult,
+};
 use token::Token;
 
 syntax!(keyword_create, "CREATE", Token::Create);
@@ -63,6 +71,16 @@ fn lex_keyword(s: &str) -> nom::IResult<&str, Token> {
     ))(s)
 }
 
+fn lex_id(s: &str) -> IResult<&str, Token> {
+    map(
+        recognize(pair(
+            alt((alpha1, tag("_"))),
+            many0(alt((alphanumeric1, tag("_")))),
+        )),
+        |id: &str| Token::Id(id.to_owned()),
+    )(s)
+}
+
 #[cfg(test)]
 mod test_lexer {
     use super::*;
@@ -93,5 +111,13 @@ mod test_lexer {
         assert_eq!(lex_keyword("SET"), Ok(("", Token::Set)));
         assert_eq!(lex_keyword("INTO"), Ok(("", Token::Into)));
         assert_eq!(lex_keyword("VALUES"), Ok(("", Token::Values)));
+    }
+
+    #[test]
+    fn test_lex_id() {
+        assert_eq!(lex_id("id"), Ok(("", Token::Id("id".to_owned()))));
+        assert_eq!(lex_id("id_1"), Ok(("", Token::Id("id_1".to_owned()))));
+        assert_eq!(lex_id("_id"), Ok(("", Token::Id("_id".to_owned()))));
+        assert_eq!(lex_id("_id_1"), Ok(("", Token::Id("_id_1".to_owned()))));
     }
 }
