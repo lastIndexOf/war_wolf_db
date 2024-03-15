@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*"]
+members = ["war_wolf_db_*"]
 resolver = "2"
 
 [workspace.dependencies]

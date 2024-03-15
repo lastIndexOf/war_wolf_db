@@ -37,6 +37,7 @@ syntax!(keyword_update, "UPDATE", Token::Update);
 syntax!(keyword_set, "SET", Token::Set);
 syntax!(keyword_into, "INTO", Token::Into);
 syntax!(keyword_values, "VALUES", Token::Values);
+syntax!(keyword_explain, "EXPLAIN", Token::Explain);
 
 fn lex_keyword(s: &str) -> nom::IResult<&str, Token> {
     alt((
@@ -44,19 +45,20 @@ fn lex_keyword(s: &str) -> nom::IResult<&str, Token> {
             keyword_insert,
             keyword_delete,
             keyword_update,
+            keyword_create,
+            keyword_select,
             keyword_set,
-            keyword_into,
-            keyword_values,
+            keyword_drop,
+            keyword_explain,
+            keyword_index,
         )),
         alt((
-            keyword_create,
-            keyword_drop,
             keyword_database,
             keyword_table,
-            keyword_index,
-            keyword_select,
             keyword_star,
             keyword_from,
+            keyword_into,
+            keyword_values,
             keyword_where,
             keyword_group_by,
             keyword_order_by,
@@ -69,6 +71,14 @@ fn lex_keyword(s: &str) -> nom::IResult<&str, Token> {
             keyword_on,
         )),
     ))(s)
+}
+
+fn lex_operator(s: &str) -> nom::IResult<&str, Token> {
+    todo!()
+}
+
+fn lex_punctuation(s: &str) -> nom::IResult<&str, Token> {
+    todo!()
 }
 
 fn lex_id(s: &str) -> IResult<&str, Token> {

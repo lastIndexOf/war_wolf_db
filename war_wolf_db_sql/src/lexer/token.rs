@@ -7,7 +7,6 @@ pub enum Token {
     Table,
     Index,
     // DML(data manipulation language)
-    // query
     Select,
     Star,
     From,
@@ -21,7 +20,6 @@ pub enum Token {
     Left,
     Right,
     On,
-    // modify
     Insert,
     Delete,
     Update,
