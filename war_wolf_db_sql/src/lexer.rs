@@ -277,4 +277,31 @@ mod test_lexer {
             ]
         );
     }
+
+    #[test]
+    fn test_complex_sql_with_operator() {
+        let input = "select a, count(a) from t1 group by a where b > 100";
+        let tokens = Lexer::parse_source(input).unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                // correct token
+                Token::Select,
+                Token::Id("a".to_owned()),
+                Token::Comma,
+                Token::Id("count".to_owned()),
+                Token::LParen,
+                Token::Id("a".to_owned()),
+                Token::RParen,
+                Token::From,
+                Token::Id("t1".to_owned()),
+                Token::GroupBy,
+                Token::Id("a".to_owned()),
+                Token::Where,
+                Token::Id("b".to_owned()),
+                Token::Gt,
+                Token::Integer(100),
+            ]
+        );
+    }
 }
