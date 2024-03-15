@@ -41,10 +41,9 @@ pub enum Token {
     Id(String),
     Integer(i64),
     QuoteString(String),
-    DquoteString(String),
+    DQuoteString(String),
     Null,
-    True,
-    False,
+    Boolean(bool),
     // punctuation
     Dot,
     Comma,
@@ -53,4 +52,5 @@ pub enum Token {
     RParen,
     // others
     Explain,
+    Illegal,
 }

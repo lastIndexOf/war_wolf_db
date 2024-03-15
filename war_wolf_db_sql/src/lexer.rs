@@ -4,11 +4,11 @@ mod token;
 
 use nom::{
     branch::alt,
-    bytes::complete::tag,
-    character::complete::{alpha1, alphanumeric1},
-    combinator::{map, recognize},
+    bytes::complete::{tag, take},
+    character::complete::{alpha1, alphanumeric1, char, digit1, multispace0},
+    combinator::{map, map_res, not, recognize},
     multi::many0,
-    sequence::pair,
+    sequence::{delimited, pair},
     IResult,
 };
 use token::Token;
@@ -37,32 +37,31 @@ syntax!(keyword_update, "UPDATE", Token::Update);
 syntax!(keyword_set, "SET", Token::Set);
 syntax!(keyword_into, "INTO", Token::Into);
 syntax!(keyword_values, "VALUES", Token::Values);
+syntax!(keyword_null, "NULL", Token::Null);
 syntax!(keyword_explain, "EXPLAIN", Token::Explain);
 
 fn lex_keyword(s: &str) -> nom::IResult<&str, Token> {
     alt((
         alt((
+            keyword_create,
             keyword_insert,
             keyword_delete,
             keyword_update,
-            keyword_create,
-            keyword_select,
-            keyword_set,
             keyword_drop,
+            keyword_set,
+            keyword_select,
             keyword_explain,
-            keyword_index,
         )),
         alt((
-            keyword_database,
-            keyword_table,
+            keyword_where,
+            keyword_index,
+            keyword_join,
             keyword_star,
             keyword_from,
-            keyword_into,
-            keyword_values,
-            keyword_where,
             keyword_group_by,
             keyword_order_by,
-            keyword_join,
+            keyword_into,
+            keyword_values,
             keyword_full,
             keyword_inner,
             keyword_outer,
@@ -70,15 +69,51 @@ fn lex_keyword(s: &str) -> nom::IResult<&str, Token> {
             keyword_right,
             keyword_on,
         )),
+        keyword_null,
+        alt((keyword_database, keyword_table, keyword_null)),
     ))(s)
 }
 
+syntax!(operator_ne, "!=", Token::Ne);
+syntax!(operator_ge, ">=", Token::Ge);
+syntax!(operator_gt, ">", Token::Gt);
+syntax!(operator_le, "<=", Token::Le);
+syntax!(operator_lt, "<", Token::Lt);
+syntax!(operator_eq, "=", Token::Eq);
+syntax!(operator_and, "AND", Token::And);
+syntax!(operator_or, "OR", Token::Or);
+syntax!(operator_not, "NOT", Token::Not);
+syntax!(operator_like, "LIKE", Token::Like);
+
 fn lex_operator(s: &str) -> nom::IResult<&str, Token> {
-    todo!()
+    alt((
+        operator_ne,
+        operator_ge,
+        operator_gt,
+        operator_le,
+        operator_lt,
+        operator_eq,
+        operator_and,
+        operator_or,
+        operator_not,
+        operator_like,
+    ))(s)
 }
 
+syntax!(punctuation_dot, ".", Token::Dot);
+syntax!(punctuation_comma, ",", Token::Comma);
+syntax!(punctuation_semicolon, ";", Token::Semicolon);
+syntax!(punctuation_left_paren, "(", Token::LParen);
+syntax!(punctuation_right_paren, ")", Token::RParen);
+
 fn lex_punctuation(s: &str) -> nom::IResult<&str, Token> {
-    todo!()
+    alt((
+        punctuation_dot,
+        punctuation_comma,
+        punctuation_semicolon,
+        punctuation_left_paren,
+        punctuation_right_paren,
+    ))(s)
 }
 
 fn lex_id(s: &str) -> IResult<&str, Token> {
@@ -89,6 +124,64 @@ fn lex_id(s: &str) -> IResult<&str, Token> {
         )),
         |id: &str| Token::Id(id.to_owned()),
     )(s)
+}
+
+fn lex_string(s: &str) -> IResult<&str, Token> {
+    alt((
+        delimited(
+            char('"'),
+            map(recognize(many0(not(char('"')))), |s: &str| {
+                Token::DQuoteString(s.to_owned())
+            }),
+            char('"'),
+        ),
+        delimited(
+            char('\''),
+            map(recognize(many0(not(char('\'')))), |s: &str| {
+                Token::QuoteString(s.to_owned())
+            }),
+            char('\''),
+        ),
+    ))(s)
+}
+
+fn lex_integer(s: &str) -> IResult<&str, Token> {
+    map_res(digit1, |s: &str| {
+        i64::from_str_radix(s, 10).map(|ele| Token::Integer(ele))
+    })(s)
+}
+
+fn lex_illegal(s: &str) -> IResult<&str, Token> {
+    map(take(1_usize), |_| Token::Illegal)(s)
+}
+
+#[inline]
+fn parse_token(input: &str) -> IResult<&str, Token> {
+    alt((
+        lex_keyword,
+        lex_operator,
+        lex_punctuation,
+        lex_string,
+        lex_id,
+        lex_integer,
+        lex_illegal,
+    ))(input)
+}
+
+#[inline]
+fn parse_tokens(input: &str) -> IResult<&str, Vec<Token>> {
+    many0(delimited(multispace0, parse_token, multispace0))(input)
+}
+
+pub struct Lexer;
+
+impl Lexer {
+    pub fn parse_source(input: &str) -> Result<Vec<Token>, Box<dyn std::error::Error>> {
+        match parse_tokens(input) {
+            Ok((_, tokens)) => Ok(tokens),
+            Err(e) => Err(e.to_string().into()),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -129,5 +222,59 @@ mod test_lexer {
         assert_eq!(lex_id("id_1"), Ok(("", Token::Id("id_1".to_owned()))));
         assert_eq!(lex_id("_id"), Ok(("", Token::Id("_id".to_owned()))));
         assert_eq!(lex_id("_id_1"), Ok(("", Token::Id("_id_1".to_owned()))));
+    }
+
+    #[test]
+    fn test_lex_operator() {
+        assert_eq!(lex_operator("="), Ok(("", Token::Eq)));
+        assert_eq!(lex_operator("!="), Ok(("", Token::Ne)));
+        assert_eq!(lex_operator(">"), Ok(("", Token::Gt)));
+        assert_eq!(lex_operator(">="), Ok(("", Token::Ge)));
+        assert_eq!(lex_operator("<"), Ok(("", Token::Lt)));
+        assert_eq!(lex_operator("<="), Ok(("", Token::Le)));
+        assert_eq!(lex_operator("AND"), Ok(("", Token::And)));
+        assert_eq!(lex_operator("OR"), Ok(("", Token::Or)));
+        assert_eq!(lex_operator("NOT"), Ok(("", Token::Not)));
+        assert_eq!(lex_operator("LIKE"), Ok(("", Token::Like)));
+    }
+
+    #[test]
+    fn test_lex_punctuation() {
+        assert_eq!(lex_punctuation("."), Ok(("", Token::Dot)));
+        assert_eq!(lex_punctuation(","), Ok(("", Token::Comma)));
+        assert_eq!(lex_punctuation(";"), Ok(("", Token::Semicolon)));
+        assert_eq!(lex_punctuation("("), Ok(("", Token::LParen)));
+        assert_eq!(lex_punctuation(")"), Ok(("", Token::RParen)));
+    }
+
+    #[test]
+    fn test_base_sql() {
+        let input = "CREATE DATABASE test;";
+        let tokens = Lexer::parse_source(input).unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Create,
+                Token::Database,
+                Token::Id("test".to_owned()),
+                Token::Semicolon
+            ]
+        );
+    }
+
+    #[test]
+    fn test_base_sql_with_string() {
+        // TODO: fix escape character
+        let input = "CREATE DATABASE \"test\";";
+        let tokens = Lexer::parse_source(input).unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Create,
+                Token::Database,
+                Token::DQuoteString("test".to_owned()),
+                Token::Semicolon
+            ]
+        );
     }
 }
