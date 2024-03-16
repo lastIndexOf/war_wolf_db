@@ -4,7 +4,7 @@ mod token;
 
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take},
+    bytes::complete::{is_not, tag, take},
     character::complete::{alpha1, alphanumeric1, char, digit1, multispace0},
     combinator::{map, map_res, not, recognize},
     multi::many0,
@@ -128,21 +128,17 @@ fn lex_id(s: &str) -> IResult<&str, Token> {
 
 fn lex_string(s: &str) -> IResult<&str, Token> {
     alt((
-        delimited(
-            char('"'),
-            map(recognize(many0(not(char('"')))), |s: &str| {
-                Token::DQuoteString(s.to_owned())
-            }),
-            char('"'),
-        ),
-        delimited(
-            char('\''),
-            map(recognize(many0(not(char('\'')))), |s: &str| {
-                Token::QuoteString(s.to_owned())
-            }),
-            char('\''),
-        ),
+        delimited(char('"'), double_quote_string, char('"')),
+        delimited(char('\''), quote_string, char('\'')),
     ))(s)
+}
+
+fn double_quote_string(s: &str) -> IResult<&str, Token> {
+    map(is_not("\""), |s: &str| Token::DQuoteString(s.to_owned()))(s)
+}
+
+fn quote_string(s: &str) -> IResult<&str, Token> {
+    map(is_not("'"), |s: &str| Token::QuoteString(s.to_owned()))(s)
 }
 
 fn lex_integer(s: &str) -> IResult<&str, Token> {
@@ -176,7 +172,7 @@ fn parse_tokens(input: &str) -> IResult<&str, Vec<Token>> {
 pub struct Lexer;
 
 impl Lexer {
-    pub fn parse_source(input: &str) -> Result<Vec<Token>, Box<dyn std::error::Error>> {
+    pub fn parse(input: &str) -> Result<Vec<Token>, Box<dyn std::error::Error>> {
         match parse_tokens(input) {
             Ok((_, tokens)) => Ok(tokens),
             Err(e) => Err(e.to_string().into()),
@@ -248,9 +244,21 @@ mod test_lexer {
     }
 
     #[test]
+    fn test_lex_string() {
+        assert_eq!(
+            lex_string("\"string\""),
+            Ok(("", Token::DQuoteString("string".to_owned())))
+        );
+        assert_eq!(
+            lex_string("'string'"),
+            Ok(("", Token::QuoteString("string".to_owned())))
+        );
+    }
+
+    #[test]
     fn test_base_sql() {
         let input = "CREATE DATABASE test;";
-        let tokens = Lexer::parse_source(input).unwrap();
+        let tokens = Lexer::parse(input).unwrap();
         assert_eq!(
             tokens,
             vec![
@@ -263,10 +271,9 @@ mod test_lexer {
     }
 
     #[test]
-    fn test_base_sql_with_string() {
-        // TODO: fix escape character
+    fn test_base_sql_with_double_quote_string() {
         let input = "CREATE DATABASE \"test\";";
-        let tokens = Lexer::parse_source(input).unwrap();
+        let tokens = Lexer::parse(input).unwrap();
         assert_eq!(
             tokens,
             vec![
@@ -279,9 +286,39 @@ mod test_lexer {
     }
 
     #[test]
+    fn test_base_sql_with_quote_string() {
+        let input = "CREATE DATABASE 'test';";
+        let tokens = Lexer::parse(input).unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Create,
+                Token::Database,
+                Token::QuoteString("test".to_owned()),
+                Token::Semicolon
+            ]
+        );
+    }
+
+    #[test]
+    fn test_base_sql_with_escape_string() {
+        let input = "CREATE DATABASE \"test\"\";";
+        let tokens = Lexer::parse(input).unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Create,
+                Token::Database,
+                Token::DQuoteString("test\"".to_owned()),
+                Token::Semicolon
+            ]
+        );
+    }
+
+    #[test]
     fn test_complex_sql_with_operator() {
         let input = "select a, count(a) from t1 group by a where b > 100";
-        let tokens = Lexer::parse_source(input).unwrap();
+        let tokens = Lexer::parse(input).unwrap();
         assert_eq!(
             tokens,
             vec![
