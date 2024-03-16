@@ -205,7 +205,7 @@ pub struct Lexer;
 impl Lexer {
     pub fn parse(input: &str) -> Result<Vec<Token>, Box<dyn std::error::Error>> {
         match parse_tokens(input) {
-            Ok((_, tokens)) => Ok(tokens),
+            Ok((_, tokens)) => Ok([tokens, vec![Token::EOF]].concat()),
             Err(e) => Err(e.to_string().into()),
         }
     }
@@ -296,7 +296,8 @@ mod test_lexer {
                 Token::Create,
                 Token::Database,
                 Token::Id("test".to_owned()),
-                Token::Semicolon
+                Token::Semicolon,
+                Token::EOF
             ]
         );
     }
@@ -311,7 +312,8 @@ mod test_lexer {
                 Token::Create,
                 Token::Database,
                 Token::DQuoteString("test".to_owned()),
-                Token::Semicolon
+                Token::Semicolon,
+                Token::EOF
             ]
         );
     }
@@ -326,7 +328,8 @@ mod test_lexer {
                 Token::Create,
                 Token::Database,
                 Token::QuoteString("test".to_owned()),
-                Token::Semicolon
+                Token::Semicolon,
+                Token::EOF
             ]
         );
     }
@@ -370,6 +373,7 @@ mod test_lexer {
                 Token::Id("b".to_owned()),
                 Token::Gt,
                 Token::Integer(100),
+                Token::EOF,
             ]
         );
     }
