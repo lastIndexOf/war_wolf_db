@@ -1,6 +1,6 @@
 #[macro_use]
 mod macros;
-mod token;
+pub mod token;
 
 use nom::{
     branch::alt,
@@ -183,7 +183,7 @@ fn lex_illegal(s: &str) -> IResult<&str, Token> {
 }
 
 #[inline]
-fn parse_token(input: &str) -> IResult<&str, Token> {
+fn lex_token(input: &str) -> IResult<&str, Token> {
     alt((
         lex_keyword,
         lex_operator,
@@ -196,15 +196,15 @@ fn parse_token(input: &str) -> IResult<&str, Token> {
 }
 
 #[inline]
-fn parse_tokens(input: &str) -> IResult<&str, Vec<Token>> {
-    many0(delimited(multispace0, parse_token, multispace0))(input)
+fn lex_tokens(input: &str) -> IResult<&str, Vec<Token>> {
+    many0(delimited(multispace0, lex_token, multispace0))(input)
 }
 
 pub struct Lexer;
 
 impl Lexer {
-    pub fn parse(input: &str) -> Result<Vec<Token>, Box<dyn std::error::Error>> {
-        match parse_tokens(input) {
+    pub fn lex(input: &str) -> Result<Vec<Token>, Box<dyn std::error::Error>> {
+        match lex_tokens(input) {
             Ok((_, tokens)) => Ok([tokens, vec![Token::EOF]].concat()),
             Err(e) => Err(e.to_string().into()),
         }
@@ -289,7 +289,7 @@ mod test_lexer {
     #[test]
     fn test_base_sql() {
         let input = "CREATE DATABASE test;";
-        let tokens = Lexer::parse(input).unwrap();
+        let tokens = Lexer::lex(input).unwrap();
         assert_eq!(
             tokens,
             vec![
@@ -305,7 +305,7 @@ mod test_lexer {
     #[test]
     fn test_base_sql_with_double_quote_string() {
         let input = "CREATE DATABASE \"test\";";
-        let tokens = Lexer::parse(input).unwrap();
+        let tokens = Lexer::lex(input).unwrap();
         assert_eq!(
             tokens,
             vec![
@@ -321,7 +321,7 @@ mod test_lexer {
     #[test]
     fn test_base_sql_with_quote_string() {
         let input = "CREATE DATABASE 'test';";
-        let tokens = Lexer::parse(input).unwrap();
+        let tokens = Lexer::lex(input).unwrap();
         assert_eq!(
             tokens,
             vec![
@@ -338,7 +338,7 @@ mod test_lexer {
     // #[test]
     // fn test_base_sql_with_escape_string() {
     //     let input = "CREATE DATABASE \"test\"\";";
-    //     let tokens = Lexer::parse(input).unwrap();
+    //     let tokens = Lexer::lex(input).unwrap();
     //     assert_eq!(
     //         tokens,
     //         vec![
@@ -353,7 +353,7 @@ mod test_lexer {
     #[test]
     fn test_complex_sql_with_operator() {
         let input = "select a, count(a) from t1 group by a where b > 100";
-        let tokens = Lexer::parse(input).unwrap();
+        let tokens = Lexer::lex(input).unwrap();
         assert_eq!(
             tokens,
             vec![

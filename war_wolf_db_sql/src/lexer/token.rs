@@ -60,16 +60,10 @@ pub enum Token {
 #[repr(C)]
 pub struct Tokens<'t> {
     tokens: &'t Vec<Token>,
-    pos: usize,
-    size: usize,
 }
 
 impl<'t> Tokens<'t> {
     pub fn new(tokens: &'t Vec<Token>) -> Self {
-        Tokens {
-            tokens,
-            pos: 0,
-            size: tokens.len(),
-        }
+        Tokens { tokens }
     }
 }
