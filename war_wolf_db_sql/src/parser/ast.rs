@@ -14,16 +14,11 @@ pub type Program = Vec<Clause>;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Clause {
-    Select {
-        targets: Vec<Expr>,
-        from_table: Ident,
-    },
-    Where(Vec<Expr>),
+    Select(Vec<Expr>),
+    From(Ident),
+    Where(Expr),
     GroupBy(Vec<Ident>),
-    OrderBy {
-        column: Ident,
-        ordering: Ordering,
-    },
+    OrderBy(Vec<(Ident, Ordering)>),
     Join {
         left: Ident,
         right: Ident,

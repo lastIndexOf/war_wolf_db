@@ -30,6 +30,8 @@ pub enum Token {
     Set,
     Into,
     Values,
+    Asc,
+    Desc,
     // operators
     Eq,
     Ne,
@@ -60,7 +62,7 @@ pub enum Token {
     EOF,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(C)]
 pub struct Tokens<'t> {
     tokens: &'t [Token],
@@ -126,10 +128,10 @@ impl<'t> InputTake for Tokens<'t> {
     fn take_split(&self, count: usize) -> (Self, Self) {
         (
             Tokens {
-                tokens: &self.tokens[0..count],
+                tokens: &self.tokens[count..],
             },
             Tokens {
-                tokens: &self.tokens[count..],
+                tokens: &self.tokens[0..count],
             },
         )
     }

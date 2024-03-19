@@ -6,7 +6,7 @@ use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take},
     character::complete::{alpha1, alphanumeric1, char, digit1, multispace0},
-    combinator::{map, map_parser, map_res, not, recognize},
+    combinator::{map, map_res, recognize},
     multi::many0,
     sequence::{delimited, pair},
     IResult,
@@ -24,6 +24,8 @@ syntax!(keyword_from, "FROM", Token::From);
 syntax!(keyword_where, "WHERE", Token::Where);
 syntax!(keyword_group_by, "GROUP BY", Token::GroupBy);
 syntax!(keyword_order_by, "ORDER BY", Token::OrderBy);
+syntax!(keyword_desc, "DESC", Token::Desc);
+syntax!(keyword_asc, "ASC", Token::Asc);
 syntax!(keyword_join, "JOIN", Token::Join);
 syntax!(keyword_full, "FULL", Token::Full);
 syntax!(keyword_inner, "INNER", Token::Inner);
@@ -60,6 +62,8 @@ fn lex_keyword(s: &str) -> nom::IResult<&str, Token> {
             keyword_from,
             keyword_group_by,
             keyword_order_by,
+            keyword_desc,
+            keyword_asc,
             keyword_into,
             keyword_values,
             keyword_full,
@@ -328,6 +332,29 @@ mod test_lexer {
                 Token::Create,
                 Token::Database,
                 Token::QuoteString("test".to_owned()),
+                Token::Semicolon,
+                Token::EOF
+            ]
+        );
+    }
+
+    #[test]
+    fn test_base_sql_with_ordering() {
+        let input = "SELECT * FROM t1 ORDER BY a DESC, b ASC;";
+        let tokens = Lexer::lex(input).unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Select,
+                Token::Star,
+                Token::From,
+                Token::Id("t1".to_owned()),
+                Token::OrderBy,
+                Token::Id("a".to_owned()),
+                Token::Desc,
+                Token::Comma,
+                Token::Id("b".to_owned()),
+                Token::Asc,
                 Token::Semicolon,
                 Token::EOF
             ]
