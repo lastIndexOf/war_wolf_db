@@ -1,4 +1,8 @@
-#[derive(Debug, PartialEq, Clone)]
+use std::{iter::Enumerate, ops::Index, slice::Iter};
+
+use nom::{InputIter, InputLength, InputTake, Needed};
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Token {
     // DDL(data definition language)
     Create,
@@ -59,11 +63,88 @@ pub enum Token {
 #[derive(Debug, PartialEq, Clone)]
 #[repr(C)]
 pub struct Tokens<'t> {
-    tokens: &'t Vec<Token>,
+    tokens: &'t [Token],
 }
 
 impl<'t> Tokens<'t> {
-    pub fn new(tokens: &'t Vec<Token>) -> Self {
+    pub fn new(tokens: &'t [Token]) -> Self {
         Tokens { tokens }
+    }
+}
+
+impl<'t> Index<usize> for Tokens<'t> {
+    type Output = Token;
+
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.tokens[index]
+    }
+}
+
+impl<'t> InputIter for Tokens<'t> {
+    type Item = &'t Token;
+    type Iter = Enumerate<Self::IterElem>;
+    type IterElem = Iter<'t, Token>;
+
+    #[inline]
+    fn iter_indices(&self) -> Self::Iter {
+        self.tokens.iter().enumerate()
+    }
+
+    #[inline]
+    fn iter_elements(&self) -> Self::IterElem {
+        self.tokens.iter()
+    }
+
+    #[inline]
+    fn position<P>(&self, predicate: P) -> Option<usize>
+    where
+        P: Fn(Self::Item) -> bool,
+    {
+        self.tokens.iter().position(predicate)
+    }
+
+    #[inline]
+    fn slice_index(&self, count: usize) -> Result<usize, Needed> {
+        if self.tokens.len() >= count {
+            Ok(count)
+        } else {
+            Err(Needed::Unknown)
+        }
+    }
+}
+
+impl<'t> InputTake for Tokens<'t> {
+    #[inline]
+    fn take(&self, count: usize) -> Self {
+        Tokens {
+            tokens: &self.tokens[0..count],
+        }
+    }
+
+    #[inline]
+    fn take_split(&self, count: usize) -> (Self, Self) {
+        (
+            Tokens {
+                tokens: &self.tokens[0..count],
+            },
+            Tokens {
+                tokens: &self.tokens[count..],
+            },
+        )
+    }
+}
+
+impl<'t> InputLength for Tokens<'t> {
+    #[inline]
+    fn input_len(&self) -> usize {
+        self.tokens.len()
+    }
+}
+
+impl InputLength for Token {
+    #[inline]
+    fn input_len(&self) -> usize {
+        1
     }
 }

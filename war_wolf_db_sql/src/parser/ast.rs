@@ -14,17 +14,17 @@ pub type Program = Vec<Clause>;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Clause {
-    SelectClause {
-        targets: Vec<Ident>,
+    Select {
+        targets: Vec<Expr>,
         from_table: Ident,
     },
-    WhereClause(Vec<Ident>, Ident),
-    GroupByClause(Vec<Ident>),
-    OrderByClause {
+    Where(Vec<Expr>),
+    GroupBy(Vec<Ident>),
+    OrderBy {
         column: Ident,
         ordering: Ordering,
     },
-    JoinClause {
+    Join {
         left: Ident,
         right: Ident,
         join_type: JoinType,
@@ -34,18 +34,19 @@ pub enum Clause {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
-    StarExpr,
-    IdentExpr(Ident),
-    LiteralExpr(Literal),
-    PrefixExpr(Prefix, Box<Expr>),
-    InfixExpr(Infix, Box<Expr>, Box<Expr>),
+    Ident(Ident),
+    Literal(Literal),
+    FnCall { name: Ident, arguments: Vec<Expr> },
+    Prefix(Prefix, Box<Expr>),
+    Infix(Infix, Box<Expr>, Box<Expr>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Ident(String);
+pub struct Ident(pub(crate) String);
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Literal {
+    Star,
     Number(i64),
     Boolean(bool),
     String(String),
