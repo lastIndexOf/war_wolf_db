@@ -1,14 +1,14 @@
 use nom::{
     branch::alt,
-    bytes::complete::take,
-    combinator::{map, opt, verify},
-    error::{ErrorKind, ParseError},
+    bytes::complete::{tag, take},
+    combinator::{map, opt},
+    error::ErrorKind,
     multi::{many0, many1},
     sequence::{delimited, preceded, terminated, tuple},
     Err, IResult,
 };
 
-use crate::lexer::token::{self, Token, Tokens};
+use crate::lexer::token::{Token, Tokens};
 
 use self::ast::{Clause, Expr, Ident, Infix, Literal, Ordering, Program};
 
@@ -102,7 +102,12 @@ fn parse_clause_join(tokens: Tokens) -> IResult<Tokens, Clause> {
 }
 
 fn parse_expr(tokens: Tokens) -> IResult<Tokens, Expr> {
-    let (t, left) = alt((parse_paren_expr, parse_ident_expr, parse_literal_expr))(tokens)?;
+    let (t, left) = alt((
+        parse_paren_expr,
+        parse_fn_call_expr,
+        parse_ident_expr,
+        parse_literal_expr,
+    ))(tokens)?;
     let (t2, op) = take(1_usize)(t)?;
     match parse_infix_op(op[0].clone()) {
         Some(op) => {
@@ -111,6 +116,21 @@ fn parse_expr(tokens: Tokens) -> IResult<Tokens, Expr> {
         }
         None => Ok((t, left)),
     }
+}
+
+fn parse_fn_call_expr(tokens: Tokens) -> IResult<Tokens, Expr> {
+    map(
+        tuple((
+            parse_ident,
+            token_left_paren,
+            many0(preceded(opt(token_comma), parse_ident)),
+            token_right_paren,
+        )),
+        |(name, _, params, _)| Expr::FnCall {
+            name,
+            arguments: params.into_iter().map(|param| Expr::Ident(param)).collect(),
+        },
+    )(tokens)
 }
 
 fn parse_ident_expr(tokens: Tokens) -> IResult<Tokens, Expr> {
@@ -240,6 +260,19 @@ mod test_parser {
             Expr::Ident(Ident("a".to_string())),
             Expr::Ident(Ident("b".to_string())),
             Expr::Ident(Ident("c".to_string())),
+        ])];
+        compare_input_with_ast(input, expected);
+    }
+
+    #[test]
+    fn test_select_fn_call_keyword_clause() {
+        let input = "select a, count(c)";
+        let expected: Program = vec![Clause::Select(vec![
+            Expr::Ident(Ident("a".to_string())),
+            Expr::FnCall {
+                name: Ident("count".to_string()),
+                arguments: vec![Expr::Ident(Ident("c".to_string()))],
+            },
         ])];
         compare_input_with_ast(input, expected);
     }
