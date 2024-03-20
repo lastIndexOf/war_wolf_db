@@ -220,6 +220,8 @@ mod test_parser {
         },
     };
 
+    use super::ast::JoinType;
+
     fn compare_input_with_ast(input: &str, expected: Program) {
         let tokens = Lexer::lex(input).unwrap();
         let tokens = Tokens::new(&tokens);
@@ -378,5 +380,55 @@ mod test_parser {
             (Ident("a".to_string()), Ordering::Desc),
         ])];
         compare_input_with_ast(input, expected);
+    }
+
+    #[test]
+    fn test_update_clause() {
+        let input = "update t1 set a = 1, b = 2 where c = 3;";
+        let expected: Program = vec![
+            Clause::Update(Ident("t1".to_string())),
+            Clause::Set(vec![
+                Expr::Infix(
+                    Infix::Eq,
+                    Box::new(Expr::Ident(Ident("a".to_string()))),
+                    Box::new(Expr::Literal(Literal::Number(1))),
+                ),
+                Expr::Infix(
+                    Infix::Eq,
+                    Box::new(Expr::Ident(Ident("b".to_string()))),
+                    Box::new(Expr::Literal(Literal::Number(2))),
+                ),
+            ]),
+            Clause::Where(Expr::Infix(
+                Infix::Eq,
+                Box::new(Expr::Ident(Ident("c".to_string()))),
+                Box::new(Expr::Literal(Literal::Number(3))),
+            )),
+        ];
+        compare_input_with_ast(input, expected);
+    }
+
+    #[test]
+    fn test_complex_sql() {
+        // complex sql demo
+        //
+        // CREATE TABLE employees (uid int, name text, salary int);
+        // INSERT INTO employees VALUES (1, 'xiaoming', 3000);
+        // INSERT INTO employees VALUES (2, 'xiaoxiaohong', 4000);
+        // INSERT INTO employees VALUES (3, 'xiaohua', 5000);
+        // SELECT count(uid) FROM employees;
+        // EXPLAIN SELECT * FROM employees WHERE uid >= 2 ORDER BY salary;
+        // CREATE INDEX idx ON employees(uid, salary);
+        // EXPLAIN SELECT uid FROM employees WHERE uid >= 2 ORDER BY salary;
+        // DELETE FROM employees WHERE uid = 1;
+        // SELECT * FROM employees WHERE uid = 1;
+        // UPDATE FROM employees SET salary = 10000 WHERE name = 'xiaohua';
+        // SELECT salary, max(salary) FROM employees GROUP BY salary;
+
+        // CREATE TABLE orders (order_id int, customer_name text, employee_uid int);
+        // INSERT INTO orders VALUES (1, 'tom', 3), (2, 'tim', 3), (3, 'mike', 1);
+        // SELECT employees.name, orders.customer_name FROM employees FULL JOIN orders ON employees.uid = orders.employee_uid;
+        // SELECT employees.name, orders.customer_name FROM employees INNER JOIN orders ON employees.uid = orders.employee_uid;
+        // SELECT employees.name, orders.customer_name FROM employees INNER JOIN orders ON employees.uid = orders.employee_uid ORDER BY employees.salary;
     }
 }

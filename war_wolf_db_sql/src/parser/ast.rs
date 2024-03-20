@@ -15,6 +15,8 @@ pub type Program = Vec<Clause>;
 #[derive(Debug, PartialEq, Clone)]
 pub enum Clause {
     Select(Vec<Expr>),
+    Update(Ident),
+    Set(Vec<Expr>),
     From(Ident),
     Where(Expr),
     GroupBy(Vec<Ident>),
