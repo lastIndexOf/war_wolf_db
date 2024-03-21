@@ -83,7 +83,8 @@ syntax!(operator_ge, ">=", Token::Ge);
 syntax!(operator_gt, ">", Token::Gt);
 syntax!(operator_le, "<=", Token::Le);
 syntax!(operator_lt, "<", Token::Lt);
-syntax!(operator_eq, "=", Token::Eq);
+syntax!(operator_eq, "==", Token::Eq);
+syntax!(operator_assign, "=", Token::Assign);
 syntax!(operator_and, "AND", Token::And);
 syntax!(operator_or, "OR", Token::Or);
 syntax!(operator_not, "NOT", Token::Not);
@@ -91,6 +92,7 @@ syntax!(operator_like, "LIKE", Token::Like);
 
 fn lex_operator(s: &str) -> nom::IResult<&str, Token> {
     alt((
+        operator_assign,
         operator_ne,
         operator_ge,
         operator_gt,
@@ -209,7 +211,7 @@ pub struct Lexer;
 impl Lexer {
     pub fn lex(input: &str) -> Result<Vec<Token>, Box<dyn std::error::Error>> {
         match lex_tokens(input) {
-            Ok((_, tokens)) => Ok([tokens, vec![Token::EOF]].concat()),
+            Ok((_, tokens)) => Ok([tokens, vec![Token::Eof]].concat()),
             Err(e) => Err(e.to_string().into()),
         }
     }
@@ -257,7 +259,7 @@ mod test_lexer {
 
     #[test]
     fn test_lex_operator() {
-        assert_eq!(lex_operator("="), Ok(("", Token::Eq)));
+        assert_eq!(lex_operator("="), Ok(("", Token::Assign)));
         assert_eq!(lex_operator("!="), Ok(("", Token::Ne)));
         assert_eq!(lex_operator(">"), Ok(("", Token::Gt)));
         assert_eq!(lex_operator(">="), Ok(("", Token::Ge)));
@@ -301,7 +303,7 @@ mod test_lexer {
                 Token::Database,
                 Token::Id("test".to_owned()),
                 Token::Semicolon,
-                Token::EOF
+                Token::Eof
             ]
         );
     }
@@ -317,7 +319,7 @@ mod test_lexer {
                 Token::Database,
                 Token::DQuoteString("test".to_owned()),
                 Token::Semicolon,
-                Token::EOF
+                Token::Eof
             ]
         );
     }
@@ -333,7 +335,7 @@ mod test_lexer {
                 Token::Database,
                 Token::QuoteString("test".to_owned()),
                 Token::Semicolon,
-                Token::EOF
+                Token::Eof
             ]
         );
     }
@@ -356,7 +358,7 @@ mod test_lexer {
                 Token::Id("b".to_owned()),
                 Token::Asc,
                 Token::Semicolon,
-                Token::EOF
+                Token::Eof
             ]
         );
     }
@@ -400,7 +402,7 @@ mod test_lexer {
                 Token::Id("b".to_owned()),
                 Token::Gt,
                 Token::Integer(100),
-                Token::EOF,
+                Token::Eof,
             ]
         );
     }

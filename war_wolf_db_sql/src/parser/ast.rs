@@ -10,32 +10,56 @@
 //! #[derive(Debug, PartialEq, Clone)]
 //! pub enum Ident {}
 
-pub type Program = Vec<Clause>;
+pub type Program = Vec<Stmt>;
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Stmt {
+    CreateStmt(Clause),
+    InsertStmt(Clause),
+    SelectStmt {
+        select: Clause,
+        from: Clause,
+        condition: Option<Clause>,
+        ordering: Option<Clause>,
+        group_by: Option<Clause>,
+    },
+    UpdateStmt {
+        update: Clause,
+        condition: Option<Clause>,
+    },
+    DeleteStmt {
+        target: Ident,
+        condition: Clause,
+    },
+    DropStmt,
+    ExplainStmt(Box<Stmt>),
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Clause {
-    Select(Vec<Expr>),
-    Update(Ident),
-    Set(Vec<Expr>),
-    From(Ident),
-    Where(Expr),
-    GroupBy(Vec<Ident>),
-    OrderBy(Vec<(Ident, Ordering)>),
-    Join {
-        left: Ident,
-        right: Ident,
+    CreateClause(CreateType, Ident, Vec<(Ident, Ident)>),
+    InsertClause(Ident, Vec<Vec<Expr>>),
+    SelectClause(Vec<Expr>),
+    UpdateClause(Ident, Vec<Expr>),
+    FromClause(Ident, Option<Box<Clause>>),
+    JoinClause {
+        join_on: Ident,
         join_type: JoinType,
-        condition: Option<Expr>,
+        condition: Vec<Expr>,
     },
+    WhereClause(Vec<Expr>),
+    GroupByClause(Vec<Expr>),
+    OrderByClause(Vec<(Expr, Ordering)>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
-    Ident(Ident),
-    Literal(Literal),
-    FnCall { name: Ident, arguments: Vec<Expr> },
-    Prefix(Prefix, Box<Expr>),
-    Infix(Infix, Box<Expr>, Box<Expr>),
+    IdentExpr(Ident),
+    LiteralExpr(Literal),
+    FnCallExpr { name: Ident, arguments: Vec<Expr> },
+    DotExpr(Ident, Box<Expr>),
+    PrefixExpr(Prefix, Box<Expr>),
+    InfixExpr(Infix, Box<Expr>, Box<Expr>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -56,12 +80,19 @@ pub enum Ordering {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum CreateType {
+    Table,
+    Index,
+    Database,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum JoinType {
     Left,
     Right,
     Inner,
     Full,
-    Cross,
+    Outer,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -77,6 +108,7 @@ pub enum Infix {
     Sub,
     Mul,
     Div,
+    Assign,
     Eq,
     Ne,
     Gt,

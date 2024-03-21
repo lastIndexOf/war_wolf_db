@@ -33,6 +33,7 @@ pub enum Token {
     Asc,
     Desc,
     // operators
+    Assign,
     Eq,
     Ne,
     Gt,
@@ -59,7 +60,7 @@ pub enum Token {
     // others
     Explain,
     Illegal,
-    EOF,
+    Eof,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
