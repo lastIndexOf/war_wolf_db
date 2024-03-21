@@ -1,0 +1,6 @@
+[package]
+name = "war_wolf_db_metadata"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]

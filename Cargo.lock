@@ -327,6 +327,10 @@ name = "war_wolf_db_executor"
 version = "0.1.0"
 
 [[package]]
+name = "war_wolf_db_metadata"
+version = "0.1.0"
+
+[[package]]
 name = "war_wolf_db_protocol"
 version = "0.1.0"
 
