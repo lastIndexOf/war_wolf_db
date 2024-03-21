@@ -41,6 +41,7 @@ tag_token!(token_left_paren, Token::LParen);
 tag_token!(token_right_paren, Token::RParen);
 tag_token!(token_and, Token::And);
 tag_token!(token_delete, Token::Delete);
+tag_token!(token_dot, Token::Dot);
 tag_token!(token_comma, Token::Comma);
 tag_token!(token_semicolon, Token::Semicolon);
 tag_token!(token_eof, Token::Eof);
@@ -265,6 +266,7 @@ fn parse_clause_join(tokens: Tokens) -> IResult<Tokens, Clause> {
 
 fn parse_expr(tokens: Tokens) -> IResult<Tokens, Expr> {
     let (t, left) = alt((
+        parse_dot_expr,
         parse_paren_expr,
         parse_fn_call_expr,
         parse_ident_expr,
@@ -278,6 +280,24 @@ fn parse_expr(tokens: Tokens) -> IResult<Tokens, Expr> {
         }
         None => Ok((t, left)),
     }
+}
+
+// TODO: support multi dot expr
+// bar.foo.baz
+fn parse_dot_expr(tokens: Tokens) -> IResult<Tokens, Expr> {
+    map(
+        tuple((parse_ident, token_dot, parse_ident)),
+        |(root, _, child)| {
+            Expr::DotExpr(
+                Box::new(Expr::IdentExpr(root)),
+                Box::new(Expr::IdentExpr(child)),
+            )
+        },
+    )(tokens)
+}
+
+fn parse_paren_expr(tokens: Tokens) -> IResult<Tokens, Expr> {
+    delimited(token_left_paren, parse_expr, token_right_paren)(tokens)
 }
 
 fn parse_fn_call_expr(tokens: Tokens) -> IResult<Tokens, Expr> {
@@ -304,10 +324,6 @@ fn parse_ident_expr(tokens: Tokens) -> IResult<Tokens, Expr> {
 
 fn parse_literal_expr(tokens: Tokens) -> IResult<Tokens, Expr> {
     map(parse_literal, Expr::LiteralExpr)(tokens)
-}
-
-fn parse_paren_expr(tokens: Tokens) -> IResult<Tokens, Expr> {
-    delimited(token_left_paren, parse_expr, token_right_paren)(tokens)
 }
 
 fn parse_ident(tokens: Tokens) -> IResult<Tokens, Ident> {
@@ -464,7 +480,7 @@ mod test_parser {
 
     #[test]
     fn test_from_with_join_clause() {
-        let input = "select a from t1 left join t2 on t1.a = t2.a";
+        let input = "select a from t1 join t2 on t1.a = t2.a";
         let expected: Program = vec![Stmt::SelectStmt {
             select: Clause::SelectClause(vec![Expr::IdentExpr(Ident("a".to_string()))]),
             from: Clause::FromClause(
@@ -475,11 +491,11 @@ mod test_parser {
                     condition: vec![Expr::InfixExpr(
                         Infix::Assign,
                         Box::new(Expr::DotExpr(
-                            Ident("t1".to_string()),
+                            Box::new(Expr::IdentExpr(Ident("t1".to_string()))),
                             Box::new(Expr::IdentExpr(Ident("a".to_string()))),
                         )),
                         Box::new(Expr::DotExpr(
-                            Ident("t2".to_string()),
+                            Box::new(Expr::IdentExpr(Ident("t2".to_string()))),
                             Box::new(Expr::IdentExpr(Ident("a".to_string()))),
                         )),
                     )],
@@ -505,11 +521,11 @@ mod test_parser {
                     condition: vec![Expr::InfixExpr(
                         Infix::Assign,
                         Box::new(Expr::DotExpr(
-                            Ident("t1".to_string()),
+                            Box::new(Expr::IdentExpr(Ident("t1".to_string()))),
                             Box::new(Expr::IdentExpr(Ident("a".to_string()))),
                         )),
                         Box::new(Expr::DotExpr(
-                            Ident("t2".to_string()),
+                            Box::new(Expr::IdentExpr(Ident("t2".to_string()))),
                             Box::new(Expr::IdentExpr(Ident("a".to_string()))),
                         )),
                     )],
@@ -681,29 +697,5 @@ mod test_parser {
             )])),
         }];
         compare_input_with_ast(input, expected);
-    }
-
-    #[test]
-    fn test_complex_sql() {
-        // complex sql demo
-        //
-        // CREATE TABLE employees (uid int, name text, salary int);
-        // INSERT INTO employees VALUES (1, 'xiaoming', 3000);
-        // INSERT INTO employees VALUES (2, 'xiaoxiaohong', 4000);
-        // INSERT INTO employees VALUES (3, 'xiaohua', 5000);
-        // SELECT count(uid) FROM employees;
-        // EXPLAIN SELECT * FROM employees WHERE uid >= 2 ORDER BY salary;
-        // CREATE INDEX idx ON employees(uid, salary);
-        // EXPLAIN SELECT uid FROM employees WHERE uid >= 2 ORDER BY salary;
-        // DELETE FROM employees WHERE uid = 1;
-        // SELECT * FROM employees WHERE uid = 1;
-        // UPDATE employees SET salary = 10000 WHERE name = 'xiaohua';
-        // SELECT salary, max(salary) FROM employees GROUP BY salary;
-
-        // CREATE TABLE orders (order_id int, customer_name text, employee_uid int);
-        // INSERT INTO orders VALUES (1, 'tom', 3), (2, 'tim', 3), (3, 'mike', 1);
-        // SELECT employees.name, orders.customer_name FROM employees FULL JOIN orders ON employees.uid = orders.employee_uid;
-        // SELECT employees.name, orders.customer_name FROM employees INNER JOIN orders ON employees.uid = orders.employee_uid;
-        // SELECT employees.name, orders.customer_name FROM employees INNER JOIN orders ON employees.uid = orders.employee_uid ORDER BY employees.salary;
     }
 }

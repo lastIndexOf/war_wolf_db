@@ -57,7 +57,7 @@ pub enum Expr {
     IdentExpr(Ident),
     LiteralExpr(Literal),
     FnCallExpr { name: Ident, arguments: Vec<Expr> },
-    DotExpr(Ident, Box<Expr>),
+    DotExpr(Box<Expr>, Box<Expr>),
     PrefixExpr(Prefix, Box<Expr>),
     InfixExpr(Infix, Box<Expr>, Box<Expr>),
 }
