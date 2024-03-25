@@ -14,7 +14,8 @@ use self::ast::{Clause, Expr, Ident, Infix, JoinType, Literal, Ordering, Program
 
 #[macro_use]
 mod macros;
-mod ast;
+
+pub(crate) mod ast;
 
 tag_token!(token_create, Token::Create);
 tag_token!(token_table, Token::Table);

@@ -73,8 +73,9 @@ pub enum Literal {
     String(String),
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Default, Debug, PartialEq, Clone)]
 pub enum Ordering {
+    #[default]
     Asc,
     Desc,
 }
@@ -86,11 +87,12 @@ pub enum CreateType {
     Database,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Default, Debug, PartialEq, Clone)]
 pub enum JoinType {
+    #[default]
+    Inner,
     Left,
     Right,
-    Inner,
     Full,
     Outer,
 }
@@ -102,12 +104,13 @@ pub enum Prefix {
     Not,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Default, Debug, PartialEq, Clone)]
 pub enum Infix {
     Add,
     Sub,
     Mul,
     Div,
+    #[default]
     Assign,
     Eq,
     Ne,
