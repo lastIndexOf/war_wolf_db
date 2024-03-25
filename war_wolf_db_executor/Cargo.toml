@@ -4,3 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+war_wolf_db_metadata = { path = "../war_wolf_db_metadata" }
+war_wolf_db_sql = { path = "../war_wolf_db_sql" }

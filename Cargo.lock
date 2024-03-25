@@ -325,6 +325,10 @@ dependencies = [
 [[package]]
 name = "war_wolf_db_executor"
 version = "0.1.0"
+dependencies = [
+ "war_wolf_db_metadata",
+ "war_wolf_db_sql",
+]
 
 [[package]]
 name = "war_wolf_db_metadata"
