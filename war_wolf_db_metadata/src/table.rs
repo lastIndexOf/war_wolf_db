@@ -1,4 +1,4 @@
-use crate::Metadata;
+use crate::{Metadata, TABLE};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct TableMD {
@@ -51,6 +51,20 @@ impl Metadata for TableMD {
     }
 }
 
+pub fn table_exists(table_md: &TableMD, table_name: &str) -> bool {
+    !table_md.select(|tb| tb.name == table_name).is_empty()
+}
+
+pub fn columns_exists(table_md: &TableMD, table_name: &str, column_name: &str) -> bool {
+    let tables = table_md.select(|tb| tb.name == table_name);
+
+    if tables.is_empty() {
+        return false;
+    }
+
+    tables[0].columns.iter().any(|col| col.name == column_name)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -91,5 +105,31 @@ mod test {
                 ]
             },]
         )
+    }
+
+    #[test]
+    fn test_utils_fn() {
+        let mut table = TableMD::new("table metadata");
+
+        table.insert_many(vec![Table {
+            name: "users".to_owned(),
+            columns: vec![
+                Column {
+                    name: "id".to_owned(),
+                    data_type: DataType::Int,
+                },
+                Column {
+                    name: "name".to_owned(),
+                    data_type: DataType::String,
+                },
+            ],
+        }]);
+
+        assert!(table_exists(&table, "users"));
+        assert!(!table_exists(&table, "not_exist"));
+
+        assert!(columns_exists(&table, "users", "id"));
+        assert!(!columns_exists(&table, "users", "not_exist"));
+        assert!(!columns_exists(&table, "not_exits", "not_exist"));
     }
 }

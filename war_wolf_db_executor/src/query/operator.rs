@@ -28,7 +28,7 @@ pub struct Scan {
 }
 
 #[derive(Default, Debug, PartialEq, Clone)]
-enum CondVal {
+pub(crate) enum CondVal {
     Column(TableColumn),
     Literal(String),
     Number(i64),
@@ -37,7 +37,7 @@ enum CondVal {
 }
 
 #[derive(Default, Debug, PartialEq, Clone)]
-struct Condition {
+pub struct Condition {
     sign: Infix,
     left: CondVal,
     right: CondVal,
@@ -45,7 +45,7 @@ struct Condition {
 
 #[derive(Default, Debug, PartialEq, Clone)]
 pub struct Filter {
-    conditions: Vec<Condition>,
+    pub(crate) conditions: Vec<Condition>,
 }
 
 #[derive(Default, Debug, PartialEq, Clone)]

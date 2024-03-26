@@ -1,5 +1,5 @@
-use war_wolf_db_metadata::{Metadata, TABLE};
-use war_wolf_db_sql::parser::ast::{self, Clause, Literal};
+use war_wolf_db_metadata::{table::columns_exists, Metadata, TABLE};
+use war_wolf_db_sql::parser::ast::{self, Clause, Ident, Literal};
 
 use self::{
     operator::{Filter, Join, Order, Scan},
@@ -129,14 +129,92 @@ impl QueryBuilder {
             Clause::SelectClause(exprs) => {
                 for expr in exprs {
                     match expr {
-                        ast::Expr::LiteralExpr(Literal::Star) => {}
-                        ast::Expr::IdentExpr(ident) => {}
-                        _ => todo!(),
+                        ast::Expr::LiteralExpr(Literal::Star) => {
+                            if !table_cols.is_empty() {
+                                // TODO: add custom error
+                                panic!("* cannot be used with other columns");
+                            }
+
+                            for scan in &self.scan_operators {
+                                let table = TABLE
+                                    .get()
+                                    .unwrap()
+                                    .select(|table| table.name == scan.table_name)[0];
+
+                                for column in &table.columns {
+                                    table_cols.push(TableColumn {
+                                        table_name: table.name.clone(),
+                                        column: column.name.clone(),
+                                    });
+                                }
+                            }
+
+                            break;
+                        }
+                        ast::Expr::IdentExpr(Ident(ident)) => {
+                            if ident.contains('.') {
+                                let parts: Vec<&str> = ident.split('.').collect();
+                                let table_name = parts[0];
+                                let column_name = parts[1];
+
+                                if !columns_exists(&TABLE.get().unwrap(), table_name, column_name) {
+                                    // TODO: add custom error
+                                    panic!(
+                                        "Column {} does not exist in table {}",
+                                        column_name, table_name
+                                    );
+                                }
+
+                                table_cols.push(TableColumn {
+                                    table_name: table_name.to_string(),
+                                    column: column_name.to_string(),
+                                });
+                            } else {
+                                let mut founded = false;
+
+                                for scan in &self.scan_operators {
+                                    let table_md = TABLE.get().unwrap();
+
+                                    if columns_exists(table_md, &scan.table_name, &ident) {
+                                        if founded {
+                                            // TODO: add custom error
+                                            panic!("Column {} is ambiguous", ident);
+                                        }
+
+                                        table_cols.push(TableColumn {
+                                            table_name: scan.table_name.clone(),
+                                            column: ident.clone(),
+                                        });
+
+                                        founded = true;
+                                    }
+                                }
+
+                                if !founded {
+                                    // TODO: add custom error
+                                    panic!(
+                                        "Column {} does not exist in tables {}",
+                                        ident,
+                                        self.scan_operators
+                                            .iter()
+                                            .map(|scan| { &scan.table_name[..] })
+                                            .collect::<Vec<_>>()
+                                            .join(", ")
+                                    );
+                                }
+                            }
+                        }
+                        _ => {
+                            // TODO: add custom error
+                            panic!("Invalid expression in select clause: {:?}", expr);
+                        }
                     }
                 }
             }
             _ => {}
         }
+
+        self.project_columns = table_cols;
 
         self
     }
@@ -144,7 +222,17 @@ impl QueryBuilder {
     #[inline]
     fn with_where_clause(self, clause: &Clause) -> Self {
         assert!(matches!(clause, Clause::WhereClause(_)));
-        todo!()
+
+        match clause {
+            Clause::WhereClause(exprs) => {
+                let mut filters = Filter::default();
+
+                for expr in exprs {}
+            }
+            _ => {}
+        }
+
+        self
     }
 
     #[inline]
