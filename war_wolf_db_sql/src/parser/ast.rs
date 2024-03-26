@@ -63,7 +63,13 @@ pub enum Expr {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Ident(pub(crate) String);
+pub struct Ident(pub String);
+
+impl ToString for Ident {
+    fn to_string(&self) -> String {
+        self.0.clone()
+    }
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Literal {

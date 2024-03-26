@@ -7,8 +7,8 @@ use super::operator::LogicOp;
 
 #[derive(Default, Debug, PartialEq, Clone)]
 pub struct TableColumn {
-    table_name: String,
-    column: String,
+    pub(crate) table_name: String,
+    pub(crate) column: String,
 }
 
 #[derive(Default, Debug, PartialEq, Clone)]
@@ -24,18 +24,18 @@ pub enum QueryType {
 #[derive(Default, Debug, PartialEq, Clone)]
 pub struct Query {
     pub(crate) query_type: QueryType,
-    pub(crate) root: Option<Rc<RefCell<QueryNode>>>,
-    pub(crate) tail: Option<Rc<RefCell<QueryNode>>>,
+    pub(crate) root: Option<Rc<RefCell<QueryOp>>>,
+    pub(crate) tail: Option<Rc<RefCell<QueryOp>>>,
 }
 
 #[derive(Default, Debug, Clone)]
-pub struct QueryNode {
+pub struct QueryOp {
     pub(crate) data: LogicOp,
-    pub(crate) parent: Option<Weak<RefCell<QueryNode>>>,
-    pub(crate) next: Option<Rc<RefCell<QueryNode>>>,
+    pub(crate) parent: Option<Weak<RefCell<QueryOp>>>,
+    pub(crate) next: Option<Rc<RefCell<QueryOp>>>,
 }
 
-impl PartialEq for QueryNode {
+impl PartialEq for QueryOp {
     fn eq(&self, other: &Self) -> bool {
         self.data == other.data && self.next == self.next
     }

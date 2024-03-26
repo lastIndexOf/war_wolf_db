@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use war_wolf_db_metadata::table::Column;
 use war_wolf_db_sql::parser::ast::{self, Infix, JoinType};
 
-use super::query_list::TableColumn;
+use super::query_op::TableColumn;
 
 #[derive(Default, Debug, PartialEq, Clone)]
 pub enum LogicOp {
