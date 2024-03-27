@@ -145,7 +145,7 @@ pub struct Order {
 
 #[derive(Default, Debug, PartialEq, Clone)]
 pub struct GroupBy {
-    columns: Vec<TableColumn>,
-    aggregate_fn: String,
-    aggregate_column: String,
+    pub(crate) column: TableColumn,
+    pub(crate) aggregate_fn: Option<String>,
+    pub(crate) aggregate_column: Option<String>,
 }

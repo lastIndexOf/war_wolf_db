@@ -1,14 +1,14 @@
 use war_wolf_db_metadata::{
-    table::{columns_exists, table_exists, Table},
+    table::{columns_exists, table_exists},
     Metadata, TABLE,
 };
 use war_wolf_db_sql::parser::ast::{self, Clause, Ident, Literal};
 
-use crate::query::operator::{CondVal, Condition};
+use crate::query::operator::{CondVal, Condition, GroupBy};
 
 use self::{
     operator::{Filter, Join, Order, Scan},
-    query_op::{Query, TableColumn},
+    query_op::{Column, Query, TableColumn},
 };
 
 pub mod operator;
@@ -16,12 +16,12 @@ mod query_op;
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct QueryBuilder {
-    project_columns: Vec<TableColumn>,
-    scan_operators: Vec<Scan>,
+    project_columns: Vec<Column>,
     filter_operators: Vec<Filter>,
+    scan_operators: Vec<Scan>,
     join_operator: Option<Join>,
     order_operator: Option<Order>,
-    group_columns: Vec<TableColumn>,
+    group_column: Option<GroupBy>,
 }
 
 impl QueryBuilder {
@@ -149,10 +149,10 @@ impl QueryBuilder {
                                     .select(|table| table.name == scan.table_name)[0];
 
                                 for column in &table.columns {
-                                    table_cols.push(TableColumn {
+                                    table_cols.push(Column::TableColumn(TableColumn {
                                         table_name: table.name.clone(),
                                         column: column.name.clone(),
-                                    });
+                                    }));
                                 }
                             }
 
@@ -172,10 +172,10 @@ impl QueryBuilder {
                                     );
                                 }
 
-                                table_cols.push(TableColumn {
+                                table_cols.push(Column::TableColumn(TableColumn {
                                     table_name: table_name.to_string(),
                                     column: column_name.to_string(),
-                                });
+                                }));
                             } else {
                                 let mut founded = false;
 
@@ -188,10 +188,10 @@ impl QueryBuilder {
                                             panic!("Column {} is ambiguous", ident);
                                         }
 
-                                        table_cols.push(TableColumn {
+                                        table_cols.push(Column::TableColumn(TableColumn {
                                             table_name: scan.table_name.clone(),
                                             column: ident.clone(),
-                                        });
+                                        }));
 
                                         founded = true;
                                     }
@@ -398,8 +398,69 @@ impl QueryBuilder {
     }
 
     #[inline]
-    fn with_group_by_clause(self, clause: &Clause) -> Self {
+    fn with_group_by_clause(mut self, clause: &Clause) -> Self {
         assert!(matches!(clause, Clause::GroupByClause(_)));
+
+        match clause {
+            Clause::GroupByClause(exprs) => {
+                // TODO: only support one group by column now
+                let expr = &exprs[0];
+                let table_md = TABLE.get().unwrap();
+
+                match &expr {
+                    ast::Expr::DotExpr(table, column) => {
+                        if let (ast::Expr::IdentExpr(table), ast::Expr::IdentExpr(column)) =
+                            (table.as_ref(), column.as_ref())
+                        {
+                            if !columns_exists(table_md, &table.to_string(), &column.to_string()) {
+                                // TODO: add custom error
+                                panic!(
+                                    "Column {} does not exist in table {}",
+                                    column.to_string(),
+                                    table.to_string()
+                                );
+                            } else {
+                                self.group_column = Some(GroupBy {
+                                    column: TableColumn {
+                                        table_name: table.to_string(),
+                                        column: column.to_string(),
+                                    },
+                                    aggregate_fn: None,
+                                    aggregate_column: None,
+                                });
+                            }
+                        }
+                    }
+                    ast::Expr::IdentExpr(ident) => {
+                        let mut founded = false;
+
+                        for scan in &self.scan_operators {
+                            if columns_exists(table_md, &scan.table_name, &ident.to_string()) {
+                                if founded {
+                                    // TODO: add custom error
+                                    panic!("Column {} is ambiguous", ident.to_string());
+                                } else {
+                                    self.group_column = Some(GroupBy {
+                                        column: TableColumn {
+                                            table_name: scan.table_name.clone(),
+                                            column: ident.to_string(),
+                                        },
+                                        aggregate_fn: None,
+                                        aggregate_column: None,
+                                    });
+                                    founded = true;
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+
+        // TODO: check if is aggregate function exits in project_columns
+
         self
     }
 

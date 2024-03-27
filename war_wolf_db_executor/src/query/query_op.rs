@@ -5,10 +5,22 @@ use std::{
 
 use super::operator::LogicOp;
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum Column {
+    TableColumn(TableColumn),
+    FuncColumn(FuncColumn),
+}
+
 #[derive(Default, Debug, PartialEq, Clone)]
 pub struct TableColumn {
     pub(crate) table_name: String,
     pub(crate) column: String,
+}
+
+#[derive(Default, Debug, PartialEq, Clone)]
+pub struct FuncColumn {
+    pub(crate) func_name: String,
+    pub(crate) args: Vec<TableColumn>,
 }
 
 #[derive(Default, Debug, PartialEq, Clone)]
