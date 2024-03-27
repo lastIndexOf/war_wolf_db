@@ -1,5 +1,5 @@
 use war_wolf_db_metadata::{
-    table::{columns_exists, Table},
+    table::{columns_exists, table_exists, Table},
     Metadata, TABLE,
 };
 use war_wolf_db_sql::parser::ast::{self, Clause, Ident, Literal};
@@ -52,6 +52,8 @@ impl QueryBuilder {
                 if let Some(clause) = condition {
                     this = this.with_where_clause(clause);
                 }
+
+                this = this.with_join_clause(from);
 
                 if let Some(clause) = ordering {
                     this = this.with_order_clause(clause);
@@ -228,85 +230,10 @@ impl QueryBuilder {
     fn with_where_clause(mut self, clause: &Clause) -> Self {
         assert!(matches!(clause, Clause::WhereClause(_)));
 
-        let mut conditions = vec![];
+        let mut conditions: Vec<Condition> = vec![];
         match clause {
             Clause::WhereClause(exprs) => {
-                for expr in exprs {
-                    match expr {
-                        ast::Expr::InfixExpr(infix, left, right) => {
-                            match (left.as_ref(), right.as_ref()) {
-                                (ast::Expr::DotExpr(lp, lc), ast::Expr::DotExpr(rp, rc)) => {
-                                    match (lp.as_ref(), lc.as_ref(), rp.as_ref(), rc.as_ref()) {
-                                        (
-                                            ast::Expr::IdentExpr(lpt),
-                                            ast::Expr::IdentExpr(lct),
-                                            ast::Expr::IdentExpr(rpt),
-                                            ast::Expr::IdentExpr(rct),
-                                        ) => {
-                                            let cond = Condition {
-                                                sign: infix.clone(),
-                                                left: CondVal::Column(TableColumn {
-                                                    table_name: lpt.to_string(),
-                                                    column: lct.to_string(),
-                                                }),
-                                                right: CondVal::Column(TableColumn {
-                                                    table_name: rpt.to_string(),
-                                                    column: rct.to_string(),
-                                                }),
-                                            };
-
-                                            conditions.push(cond);
-                                        }
-                                        _ => {
-                                            // TODO: add custom error
-                                            panic!("Invalid expression in where clause: {:?}. Only column expressions are allowed", expr);
-                                        }
-                                    }
-                                }
-                                (ast::Expr::DotExpr(tb, col), ast::Expr::LiteralExpr(literal))
-                                | (ast::Expr::LiteralExpr(literal), ast::Expr::DotExpr(tb, col)) => {
-                                    match (tb.as_ref(), col.as_ref()) {
-                                        (ast::Expr::IdentExpr(tb), ast::Expr::IdentExpr(col)) => {
-                                            let cond = Condition {
-                                                sign: infix.clone(),
-                                                left: CondVal::Column(TableColumn {
-                                                    table_name: tb.to_string(),
-                                                    column: col.to_string(),
-                                                }),
-                                                right: CondVal::Literal(literal.to_string()),
-                                            };
-
-                                            conditions.push(cond);
-                                        }
-                                        _ => {
-                                            // TODO: add custom error
-                                            panic!("Invalid expression in where clause: {:?}. Only column expressions are allowed", expr);
-                                        }
-                                    }
-                                }
-                                (ast::Expr::IdentExpr(left), ast::Expr::IdentExpr(right)) => {
-                                    unimplemented!()
-                                }
-                                (ast::Expr::IdentExpr(ident), ast::Expr::LiteralExpr(literal))
-                                | (ast::Expr::LiteralExpr(literal), ast::Expr::IdentExpr(ident)) => {
-                                    unimplemented!()
-                                }
-                                (ast::Expr::IdentExpr(ident), ast::Expr::DotExpr(left, right))
-                                | (ast::Expr::DotExpr(left, right), ast::Expr::IdentExpr(ident)) => {
-                                    unimplemented!()
-                                }
-                                _ => {
-                                    // TODO: add custom error
-                                    panic!("Invalid expression in where clause: {:?}. Only column expressions are allowed", expr);
-                                }
-                            }
-                        }
-                        _ => {
-                            // TODO: add custom error
-                            panic!("Invalid expression in where clause: {:?}. Only column expressions are allowed", expr);
-                        }
-                    }
-                }
+                conditions.extend(exprs.into_iter().map(|expr| expr.into()));
             }
             _ => {}
         }
@@ -351,28 +278,133 @@ impl QueryBuilder {
     }
 
     #[inline]
-    fn with_join_clause(self, clause: &Clause) -> Self {
-        assert!(matches!(clause, Clause::JoinClause { .. }));
+    fn with_join_clause(mut self, clause: &Clause) -> Self {
+        assert!(matches!(clause, Clause::FromClause { .. }));
         // select t1.name, t2.age from t1 left join t2 on t1.id = t2.uid;
-        todo!()
+
+        if let Clause::FromClause(left_table, Some(join_clause)) = clause {
+            if let Clause::JoinClause {
+                join_on,
+                condition,
+                join_type,
+            } = join_clause.as_ref()
+            {
+                let left_table = left_table.to_string();
+                let right_table = join_on.to_string();
+
+                let table_md = TABLE.get().unwrap();
+
+                if !table_exists(table_md, &left_table) {
+                    // TODO: add custom error
+                    panic!("Table {} does not exist", left_table);
+                }
+
+                if !table_exists(table_md, &right_table) {
+                    // TODO: add custom error
+                    panic!("Table {} does not exist", right_table);
+                }
+
+                let mut conditions: Vec<Condition> = vec![];
+                conditions.extend(condition.into_iter().map(|expr| expr.into()));
+
+                for cond in &conditions {
+                    if let CondVal::Column(TableColumn { table_name, column }) = &cond.left
+                        && !columns_exists(table_md, table_name, column)
+                    {
+                        // TODO: add custom error
+                        panic!("Column {} does not exist in table {}", column, table_name)
+                    }
+                    if let CondVal::Column(TableColumn { table_name, column }) = &cond.right
+                        && !columns_exists(table_md, table_name, column)
+                    {
+                        // TODO: add custom error
+                        panic!("Column {} does not exist in table {}", column, table_name)
+                    }
+                }
+
+                self.join_operator = Some(Join {
+                    join_type: join_type.clone(),
+                    left_table_name: left_table,
+                    right_table_name: right_table,
+                    condition: conditions,
+                });
+            }
+        }
+
+        self
     }
 
     #[inline]
-    fn with_order_clause(self, clause: &Clause) -> Self {
+    fn with_order_clause(mut self, clause: &Clause) -> Self {
         assert!(matches!(clause, Clause::OrderByClause(_)));
-        // select t1.name, t2.age from t1 left join t2 on t1.id = t2.uid;
-        todo!()
+
+        match clause {
+            Clause::OrderByClause(exprs) => {
+                // TODO: use only one order now
+                let expr = &exprs[0];
+                let table_md = TABLE.get().unwrap();
+
+                match &expr.0 {
+                    ast::Expr::DotExpr(table, column) => {
+                        if let (ast::Expr::IdentExpr(table), ast::Expr::IdentExpr(column)) =
+                            (table.as_ref(), column.as_ref())
+                        {
+                            if !columns_exists(table_md, &table.to_string(), &column.to_string()) {
+                                // TODO: add custom error
+                                panic!(
+                                    "Column {} does not exist in table {}",
+                                    column.to_string(),
+                                    table.to_string()
+                                );
+                            } else {
+                                self.order_operator = Some(Order {
+                                    column: TableColumn {
+                                        table_name: table.to_string(),
+                                        column: column.to_string(),
+                                    },
+                                    order: expr.1.clone(),
+                                });
+                            }
+                        }
+                    }
+                    ast::Expr::IdentExpr(ident) => {
+                        let mut founded = false;
+
+                        for scan in &self.scan_operators {
+                            if columns_exists(table_md, &scan.table_name, &ident.to_string()) {
+                                if founded {
+                                    // TODO: add custom error
+                                    panic!("Column {} is ambiguous", ident.to_string());
+                                } else {
+                                    self.order_operator = Some(Order {
+                                        column: TableColumn {
+                                            table_name: scan.table_name.clone(),
+                                            column: ident.to_string(),
+                                        },
+                                        order: expr.1.clone(),
+                                    });
+                                    founded = true;
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+
+        self
     }
 
     #[inline]
     fn with_group_by_clause(self, clause: &Clause) -> Self {
         assert!(matches!(clause, Clause::GroupByClause(_)));
-        // select t1.name, t2.age from t1 left join t2 on t1.id = t2.uid;
-        todo!()
+        self
     }
 
     fn optimize(&mut self) {
-        todo!()
+        // TODO: add scan operator to join operator as children
     }
 }
 
