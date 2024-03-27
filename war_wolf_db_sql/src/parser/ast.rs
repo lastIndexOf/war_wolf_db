@@ -79,6 +79,17 @@ pub enum Literal {
     String(String),
 }
 
+impl ToString for Literal {
+    fn to_string(&self) -> String {
+        match self {
+            Literal::Star => "*".to_string(),
+            Literal::Number(n) => n.to_string(),
+            Literal::Boolean(b) => b.to_string(),
+            Literal::String(s) => s.clone(),
+        }
+    }
+}
+
 #[derive(Default, Debug, PartialEq, Clone)]
 pub enum Ordering {
     #[default]

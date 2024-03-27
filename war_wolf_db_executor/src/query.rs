@@ -1,5 +1,10 @@
-use war_wolf_db_metadata::{table::columns_exists, Metadata, TABLE};
+use war_wolf_db_metadata::{
+    table::{columns_exists, Table},
+    Metadata, TABLE,
+};
 use war_wolf_db_sql::parser::ast::{self, Clause, Ident, Literal};
+
+use crate::query::operator::{CondVal, Condition};
 
 use self::{
     operator::{Filter, Join, Order, Scan},
@@ -220,17 +225,127 @@ impl QueryBuilder {
     }
 
     #[inline]
-    fn with_where_clause(self, clause: &Clause) -> Self {
+    fn with_where_clause(mut self, clause: &Clause) -> Self {
         assert!(matches!(clause, Clause::WhereClause(_)));
 
+        let mut conditions = vec![];
         match clause {
             Clause::WhereClause(exprs) => {
-                let mut filters = Filter::default();
+                for expr in exprs {
+                    match expr {
+                        ast::Expr::InfixExpr(infix, left, right) => {
+                            match (left.as_ref(), right.as_ref()) {
+                                (ast::Expr::DotExpr(lp, lc), ast::Expr::DotExpr(rp, rc)) => {
+                                    match (lp.as_ref(), lc.as_ref(), rp.as_ref(), rc.as_ref()) {
+                                        (
+                                            ast::Expr::IdentExpr(lpt),
+                                            ast::Expr::IdentExpr(lct),
+                                            ast::Expr::IdentExpr(rpt),
+                                            ast::Expr::IdentExpr(rct),
+                                        ) => {
+                                            let cond = Condition {
+                                                sign: infix.clone(),
+                                                left: CondVal::Column(TableColumn {
+                                                    table_name: lpt.to_string(),
+                                                    column: lct.to_string(),
+                                                }),
+                                                right: CondVal::Column(TableColumn {
+                                                    table_name: rpt.to_string(),
+                                                    column: rct.to_string(),
+                                                }),
+                                            };
 
-                for expr in exprs {}
+                                            conditions.push(cond);
+                                        }
+                                        _ => {
+                                            // TODO: add custom error
+                                            panic!("Invalid expression in where clause: {:?}. Only column expressions are allowed", expr);
+                                        }
+                                    }
+                                }
+                                (ast::Expr::DotExpr(tb, col), ast::Expr::LiteralExpr(literal))
+                                | (ast::Expr::LiteralExpr(literal), ast::Expr::DotExpr(tb, col)) => {
+                                    match (tb.as_ref(), col.as_ref()) {
+                                        (ast::Expr::IdentExpr(tb), ast::Expr::IdentExpr(col)) => {
+                                            let cond = Condition {
+                                                sign: infix.clone(),
+                                                left: CondVal::Column(TableColumn {
+                                                    table_name: tb.to_string(),
+                                                    column: col.to_string(),
+                                                }),
+                                                right: CondVal::Literal(literal.to_string()),
+                                            };
+
+                                            conditions.push(cond);
+                                        }
+                                        _ => {
+                                            // TODO: add custom error
+                                            panic!("Invalid expression in where clause: {:?}. Only column expressions are allowed", expr);
+                                        }
+                                    }
+                                }
+                                (ast::Expr::IdentExpr(left), ast::Expr::IdentExpr(right)) => {
+                                    unimplemented!()
+                                }
+                                (ast::Expr::IdentExpr(ident), ast::Expr::LiteralExpr(literal))
+                                | (ast::Expr::LiteralExpr(literal), ast::Expr::IdentExpr(ident)) => {
+                                    unimplemented!()
+                                }
+                                (ast::Expr::IdentExpr(ident), ast::Expr::DotExpr(left, right))
+                                | (ast::Expr::DotExpr(left, right), ast::Expr::IdentExpr(ident)) => {
+                                    unimplemented!()
+                                }
+                                _ => {
+                                    // TODO: add custom error
+                                    panic!("Invalid expression in where clause: {:?}. Only column expressions are allowed", expr);
+                                }
+                            }
+                        }
+                        _ => {
+                            // TODO: add custom error
+                            panic!("Invalid expression in where clause: {:?}. Only column expressions are allowed", expr);
+                        }
+                    }
+                }
             }
             _ => {}
         }
+
+        for cond in &conditions {
+            match (&cond.left, &cond.right) {
+                (CondVal::Column(ref left), CondVal::Column(ref right)) => {
+                    let table_md = TABLE.get().unwrap();
+                    if !columns_exists(table_md, &left.table_name, &left.column) {
+                        // TODO: add custom error
+                        panic!(
+                            "Column {} does not exist in table {}",
+                            left.column, left.table_name,
+                        );
+                    }
+
+                    if !columns_exists(table_md, &right.table_name, &right.column) {
+                        // TODO: add custom error
+                        panic!(
+                            "Column {} does not exist in tables {}",
+                            right.column, right.table_name
+                        );
+                    }
+                }
+                (CondVal::Column(ref left), _) => {
+                    let table_md = TABLE.get().unwrap();
+                    if !columns_exists(table_md, &left.table_name, &left.column) {
+                        // TODO: add custom error
+                        panic!(
+                            "Column {} does not exist in table {}",
+                            left.column, left.table_name,
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        self.filter_operators.push(Filter { conditions });
 
         self
     }

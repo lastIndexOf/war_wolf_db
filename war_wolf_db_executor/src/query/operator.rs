@@ -31,16 +31,15 @@ pub struct Scan {
 pub(crate) enum CondVal {
     Column(TableColumn),
     Literal(String),
-    Number(i64),
     #[default]
     Null,
 }
 
 #[derive(Default, Debug, PartialEq, Clone)]
 pub struct Condition {
-    sign: Infix,
-    left: CondVal,
-    right: CondVal,
+    pub(crate) sign: Infix,
+    pub(crate) left: CondVal,
+    pub(crate) right: CondVal,
 }
 
 #[derive(Default, Debug, PartialEq, Clone)]
