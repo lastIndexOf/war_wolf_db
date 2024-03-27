@@ -504,10 +504,10 @@ mod test {
                     table_name: "t1".to_string(),
                     columns: vec![],
                 }),
-                parent: None,
                 next: None,
             }))),
             tail: None,
+            size: 1,
         };
         compare_input_with_query(input, expected);
     }
