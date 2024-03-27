@@ -4,6 +4,7 @@ use table::{Column, DataType, Table, TableMD};
 
 pub mod builtin;
 pub mod database;
+pub mod func;
 pub mod index;
 pub mod table;
 
