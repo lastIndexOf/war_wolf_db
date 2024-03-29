@@ -107,6 +107,7 @@ pub enum CreateType {
 #[derive(Default, Debug, PartialEq, Clone)]
 pub enum JoinType {
     #[default]
+    Cross,
     Inner,
     Left,
     Right,

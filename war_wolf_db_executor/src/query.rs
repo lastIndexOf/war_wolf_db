@@ -1,3 +1,4 @@
+use core::panic;
 use std::{cell::RefCell, rc::Rc};
 
 use war_wolf_db_metadata::{
@@ -5,7 +6,7 @@ use war_wolf_db_metadata::{
     table::{columns_exists, table_exists},
     Metadata, FUNC, TABLE,
 };
-use war_wolf_db_sql::parser::ast::{self, Clause, Ident, Literal};
+use war_wolf_db_sql::parser::ast::{self, Clause, Ident, JoinType, Literal};
 
 use crate::query::{
     operator::{CondVal, Condition, GroupBy},
@@ -32,10 +33,17 @@ pub struct QueryBuilder {
 
 impl QueryBuilder {
     pub fn new() -> Self {
-        todo!()
+        QueryBuilder {
+            project_columns: vec![],
+            scan_operators: vec![],
+            filter_operators: vec![],
+            join_operator: None,
+            order_operator: None,
+            group_column: None,
+        }
     }
 
-    pub fn build(self) -> Option<QueryOp> {
+    pub fn build(mut self) -> Option<QueryOp> {
         let query = Rc::new(RefCell::new(QueryOp::new(LogicOp::Query(
             QueryType::Select,
         ))));
@@ -53,16 +61,68 @@ impl QueryBuilder {
                 builder = op;
             }
 
-            if let Some(join) = self.join_operator {
-                let op = builder.borrow_mut().add_child(LogicOp::Join(join));
-                builder = op;
-            }
-
             for filter in self.filter_operators {
                 // eg1: select * from t1, t2 where t1.a > t2.b;
                 // eg2: select * from t1 where 1 > 2;
                 // eg3: select * from t1 where t1.a > 100;
                 // TODO: impl filter
+                for cond in &filter.conditions {
+                    match (&cond.left, &cond.right) {
+                        (CondVal::Column(ref left), CondVal::Column(ref right)) => {
+                            // eg1
+                            if self.join_operator.is_none() {
+                                panic!("Join clause is required")
+                            }
+
+                            let join = self.join_operator.as_ref().unwrap();
+                            let join_tbs = [&join.left_table_name, &join.right_table_name];
+
+                            if !(join_tbs.contains(&&left.table_name)
+                                && join_tbs.contains(&&right.table_name))
+                            {
+                                panic!("Columns in condition must be from joined tables")
+                            }
+
+                            self.join_operator.as_mut().unwrap().join_type = JoinType::Inner;
+                            self.join_operator
+                                .as_mut()
+                                .unwrap()
+                                .condition
+                                .push(cond.clone());
+                        }
+                        (CondVal::Column(ref col), _) => {
+                            // eg3
+                            for scan in self.scan_operators.iter_mut() {
+                                if scan.table_name == col.table_name {
+                                    scan.conditions.push(cond.clone());
+                                }
+                            }
+                        }
+                        _ => {
+                            // eg2 暂不支持
+                            // TODO: add custom error
+                            panic!("Unsupported condition: {:?}", cond);
+                        }
+                    }
+                }
+            }
+
+            if let Some(join) = self.join_operator {
+                let left = join.left_table_name.clone();
+                let right = join.right_table_name.clone();
+
+                let op = builder.borrow_mut().add_child(LogicOp::Join(join));
+                builder = op;
+
+                for scan in self.scan_operators {
+                    if &scan.table_name == &left || &scan.table_name == &right {
+                        builder.borrow_mut().add_child(LogicOp::Scan(scan));
+                    }
+                }
+            } else {
+                for scan in self.scan_operators {
+                    builder.borrow_mut().add_child(LogicOp::Scan(scan));
+                }
             }
         }
 
@@ -154,6 +214,7 @@ impl QueryBuilder {
             let scan = Scan {
                 table_name: table.name.clone(),
                 columns: table.columns.clone(),
+                conditions: vec![],
             };
 
             self.scan_operators.push(scan);
@@ -630,6 +691,7 @@ impl QueryBuilder {
 mod test {
     use std::{cell::RefCell, rc::Rc};
 
+    use war_wolf_db_metadata::init;
     use war_wolf_db_sql::{
         lexer::{token::Tokens, Lexer},
         parser::Parser,
@@ -638,34 +700,35 @@ mod test {
     use crate::query::QueryBuilder;
 
     use super::{
-        operator::LogicOp,
-        query_op::{Query, QueryOp, QueryType},
+        operator::{LogicOp, Scan},
+        query_op::{QueryOp, QueryType},
     };
 
-    fn compare_input_with_query(input: &str, expected: Query) {
+    fn compare_input_with_query(input: &str, expected: QueryOp) {
         let tokens = Lexer::lex(input).unwrap();
         let tokens = Tokens::new(&tokens);
         let ast = Parser::parse(tokens).unwrap();
-        let query = QueryBuilder::new().with_stmt(&ast[0]).build();
+        let query = QueryBuilder::new().with_stmt(&ast[0]).build().unwrap();
 
         assert_eq!(query, expected);
     }
 
     #[test]
     fn test_query_builder() {
-        // let input = "select t1.name, t2.age from t1;";
-        // let expected = Query {
-        //     query_type: QueryType::Select,
-        //     root: Some(Rc::new(RefCell::new(QueryOp {
-        //         data: LogicOp::Scan(super::Scan {
-        //             table_name: "t1".to_string(),
-        //             columns: vec![],
-        //         }),
-        //         next: None,
-        //     }))),
-        //     tail: None,
-        //     size: 1,
-        // };
-        // compare_input_with_query(input, expected);
+        init();
+
+        let input = "select t1.name, t2.age from t1;";
+        let expected = QueryOp {
+            data: LogicOp::Query(QueryType::Select),
+            children: vec![Rc::new(RefCell::new(QueryOp {
+                data: LogicOp::Scan(Scan {
+                    table_name: "t1".to_owned(),
+                    columns: vec![],
+                    conditions: vec![],
+                }),
+                children: vec![],
+            }))],
+        };
+        compare_input_with_query(input, expected);
     }
 }

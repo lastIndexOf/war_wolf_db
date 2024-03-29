@@ -253,7 +253,7 @@ fn parse_clause_join(tokens: Tokens) -> IResult<Tokens, Clause> {
                 Some(Token::Right) => JoinType::Right,
                 Some(Token::Inner) => JoinType::Inner,
                 Some(Token::Outer) => JoinType::Outer,
-                _ => JoinType::Inner,
+                _ => JoinType::Cross,
             };
 
             Clause::JoinClause {
@@ -488,7 +488,7 @@ mod test_parser {
                 Ident("t1".to_string()),
                 Some(Box::new(Clause::JoinClause {
                     join_on: Ident("t2".to_string()),
-                    join_type: JoinType::Inner,
+                    join_type: JoinType::Cross,
                     condition: vec![Expr::InfixExpr(
                         Infix::Assign,
                         Box::new(Expr::DotExpr(

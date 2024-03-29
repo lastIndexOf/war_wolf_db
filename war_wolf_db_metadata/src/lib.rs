@@ -42,8 +42,8 @@ pub fn init() {
                         data_type: DataType::String,
                     },
                     Column {
-                        name: "addr".to_owned(),
-                        data_type: DataType::String,
+                        name: "age".to_owned(),
+                        data_type: DataType::Int,
                     },
                 ],
             },

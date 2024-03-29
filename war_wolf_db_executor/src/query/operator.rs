@@ -26,6 +26,7 @@ pub enum LogicOp {
 pub struct Scan {
     pub(crate) table_name: String,
     pub(crate) columns: Vec<Column>,
+    pub(crate) conditions: Vec<Condition>,
 }
 
 #[derive(Default, Debug, PartialEq, Clone)]
