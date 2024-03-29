@@ -18,6 +18,7 @@ pub enum Token {
     GroupBy,
     OrderBy,
     Join,
+    Cross,
     Full,
     Inner,
     Outer,

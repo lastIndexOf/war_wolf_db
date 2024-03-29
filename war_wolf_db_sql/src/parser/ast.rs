@@ -41,7 +41,7 @@ pub enum Clause {
     InsertClause(Ident, Vec<Vec<Expr>>),
     SelectClause(Vec<Expr>),
     UpdateClause(Ident, Vec<Expr>),
-    FromClause(Ident, Option<Box<Clause>>),
+    FromClause(Vec<Ident>, Option<Box<Clause>>),
     JoinClause {
         join_on: Ident,
         join_type: JoinType,

@@ -89,13 +89,15 @@ impl QueryBuilder {
         let mut checked_tables = vec![];
 
         match clause {
-            Clause::FromClause(name, join_clause) => {
-                unchecked_tables.push(name.to_string());
+            Clause::FromClause(tbs, join_clause) => {
+                for name in tbs {
+                    unchecked_tables.push(name.to_string());
 
-                if let Some(join_clause) = join_clause {
-                    // handle join clause
-                    if let Clause::JoinClause { join_on, .. } = join_clause.as_ref() {
-                        unchecked_tables.push(join_on.to_string());
+                    if let Some(join_clause) = join_clause {
+                        // handle join clause
+                        if let Clause::JoinClause { join_on, .. } = join_clause.as_ref() {
+                            unchecked_tables.push(join_on.to_string());
+                        }
                     }
                 }
             }
@@ -400,6 +402,7 @@ impl QueryBuilder {
                 join_type,
             } = join_clause.as_ref()
             {
+                let left_table = &left_table[0];
                 let left_table = left_table.to_string();
                 let right_table = join_on.to_string();
 
@@ -691,17 +694,23 @@ impl QueryBuilder {
 mod test {
     use std::{cell::RefCell, rc::Rc};
 
-    use war_wolf_db_metadata::init;
+    use war_wolf_db_metadata::{
+        init,
+        table::{Column, DataType},
+    };
     use war_wolf_db_sql::{
         lexer::{token::Tokens, Lexer},
-        parser::Parser,
+        parser::{
+            ast::{Infix, JoinType},
+            Parser,
+        },
     };
 
     use crate::query::QueryBuilder;
 
     use super::{
-        operator::{LogicOp, Scan},
-        query_op::{QueryOp, QueryType},
+        operator::{CondVal, Condition, Join, LogicOp, Scan},
+        query_op::{QueryOp, QueryType, TableColumn},
     };
 
     fn compare_input_with_query(input: &str, expected: QueryOp) {
@@ -710,7 +719,9 @@ mod test {
         let ast = Parser::parse(tokens).unwrap();
         let query = QueryBuilder::new().with_stmt(&ast[0]).build().unwrap();
 
-        assert_eq!(query, expected);
+        println!("{query:#?}\n{expected:#?}",);
+
+        assert_eq!(format!("{query:?}"), format!("{expected:?}"));
     }
 
     #[test]
@@ -723,7 +734,16 @@ mod test {
             children: vec![Rc::new(RefCell::new(QueryOp {
                 data: LogicOp::Scan(Scan {
                     table_name: "t1".to_owned(),
-                    columns: vec![],
+                    columns: vec![
+                        Column {
+                            name: "id".to_owned(),
+                            data_type: DataType::Int,
+                        },
+                        Column {
+                            name: "name".to_owned(),
+                            data_type: DataType::String,
+                        },
+                    ],
                     conditions: vec![],
                 }),
                 children: vec![],
@@ -737,27 +757,74 @@ mod test {
         // TODO: add query op fmt and fix this test
         init();
 
-        let input = "select t1.name, t2.age from t1 where t1.id = 1;";
+        let input = "select t1.name, t2.age from t1 join t2 on t1.id = 1 and t2.age = 12;";
         let expected = QueryOp {
             data: LogicOp::Query(QueryType::Select),
-            children: vec![
-                Rc::new(RefCell::new(QueryOp {
-                    data: LogicOp::Scan(Scan {
-                        table_name: "t1".to_owned(),
-                        columns: vec![],
-                        conditions: vec![],
-                    }),
-                    children: vec![],
-                })),
-                Rc::new(RefCell::new(QueryOp {
-                    data: LogicOp::Scan(Scan {
-                        table_name: "t2".to_owned(),
-                        columns: vec![],
-                        conditions: vec![],
-                    }),
-                    children: vec![],
-                })),
-            ],
+            children: vec![Rc::new(RefCell::new(QueryOp {
+                data: LogicOp::Join(Join {
+                    join_type: JoinType::Cross,
+                    left_table_name: "t1".to_owned(),
+                    right_table_name: "t2".to_owned(),
+                    condition: vec![
+                        Condition {
+                            sign: Infix::Assign,
+                            left: CondVal::Column(TableColumn {
+                                table_name: "t1".into(),
+                                column: "id".into(),
+                            }),
+                            right: CondVal::Literal("1".into()),
+                        },
+                        Condition {
+                            sign: Infix::Assign,
+                            left: CondVal::Column(TableColumn {
+                                table_name: "t2".into(),
+                                column: "age".into(),
+                            }),
+                            right: CondVal::Literal("12".into()),
+                        },
+                    ],
+                }),
+                children: vec![
+                    Rc::new(RefCell::new(QueryOp {
+                        data: LogicOp::Scan(Scan {
+                            table_name: "t1".to_owned(),
+                            columns: vec![
+                                Column {
+                                    name: "id".to_owned(),
+                                    data_type: DataType::Int,
+                                },
+                                Column {
+                                    name: "name".to_owned(),
+                                    data_type: DataType::String,
+                                },
+                            ],
+                            conditions: vec![],
+                        }),
+                        children: vec![],
+                    })),
+                    Rc::new(RefCell::new(QueryOp {
+                        data: LogicOp::Scan(Scan {
+                            table_name: "t2".to_owned(),
+                            columns: vec![
+                                Column {
+                                    name: "id".to_owned(),
+                                    data_type: DataType::Int,
+                                },
+                                Column {
+                                    name: "name".to_owned(),
+                                    data_type: DataType::String,
+                                },
+                                Column {
+                                    name: "age".to_owned(),
+                                    data_type: DataType::Int,
+                                },
+                            ],
+                            conditions: vec![],
+                        }),
+                        children: vec![],
+                    })),
+                ],
+            }))],
         };
 
         compare_input_with_query(input, expected);

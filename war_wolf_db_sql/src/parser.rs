@@ -29,6 +29,7 @@ tag_token!(token_set, Token::Set);
 tag_token!(token_select, Token::Select);
 tag_token!(token_from, Token::From);
 tag_token!(token_join, Token::Join);
+tag_token!(token_cross, Token::Cross);
 tag_token!(token_full, Token::Full);
 tag_token!(token_left, Token::Left);
 tag_token!(token_right, Token::Right);
@@ -178,7 +179,7 @@ fn parse_clause_from(tokens: Tokens) -> IResult<Tokens, Clause> {
     map(
         tuple((
             token_from,
-            parse_ident,
+            many1(preceded(opt(token_comma), parse_ident)),
             opt(parse_clause_join),
             opt(token_semicolon),
         )),
@@ -234,6 +235,7 @@ fn parse_clause_join(tokens: Tokens) -> IResult<Tokens, Clause> {
     map(
         tuple((
             opt(alt((
+                token_cross,
                 token_full,
                 token_left,
                 token_right,
@@ -387,7 +389,6 @@ mod test_parser {
     use nom::{
         bytes::complete::take,
         combinator::{map, verify},
-        error::Error,
         IResult,
     };
 
@@ -435,7 +436,20 @@ mod test_parser {
         let input = "select * from t1;";
         let expected: Program = vec![Stmt::SelectStmt {
             select: Clause::SelectClause(vec![Expr::LiteralExpr(Literal::Star)]),
-            from: Clause::FromClause(Ident("t1".to_string()), None),
+            from: Clause::FromClause(vec![Ident("t1".to_string())], None),
+            condition: None,
+            ordering: None,
+            group_by: None,
+        }];
+        compare_input_with_ast(input, expected);
+    }
+
+    #[test]
+    fn test_select_star_with_multi_from_clause() {
+        let input = "select * from t1, t2;";
+        let expected: Program = vec![Stmt::SelectStmt {
+            select: Clause::SelectClause(vec![Expr::LiteralExpr(Literal::Star)]),
+            from: Clause::FromClause(vec![Ident("t1".to_string()), Ident("t2".to_string())], None),
             condition: None,
             ordering: None,
             group_by: None,
@@ -452,7 +466,7 @@ mod test_parser {
                 Expr::IdentExpr(Ident("b".to_string())),
                 Expr::IdentExpr(Ident("c".to_string())),
             ]),
-            from: Clause::FromClause(Ident("t1".to_string()), None),
+            from: Clause::FromClause(vec![Ident("t1".to_string())], None),
             condition: None,
             ordering: None,
             group_by: None,
@@ -471,7 +485,7 @@ mod test_parser {
                     arguments: vec![Expr::IdentExpr(Ident("c".to_string()))],
                 },
             ]),
-            from: Clause::FromClause(Ident("t1".to_string()), None),
+            from: Clause::FromClause(vec![Ident("t1".to_string())], None),
             condition: None,
             ordering: None,
             group_by: None,
@@ -485,7 +499,7 @@ mod test_parser {
         let expected: Program = vec![Stmt::SelectStmt {
             select: Clause::SelectClause(vec![Expr::IdentExpr(Ident("a".to_string()))]),
             from: Clause::FromClause(
-                Ident("t1".to_string()),
+                vec![Ident("t1".to_string())],
                 Some(Box::new(Clause::JoinClause {
                     join_on: Ident("t2".to_string()),
                     join_type: JoinType::Cross,
@@ -515,7 +529,7 @@ mod test_parser {
         let expected: Program = vec![Stmt::SelectStmt {
             select: Clause::SelectClause(vec![Expr::IdentExpr(Ident("a".to_string()))]),
             from: Clause::FromClause(
-                Ident("t1".to_string()),
+                vec![Ident("t1".to_string())],
                 Some(Box::new(Clause::JoinClause {
                     join_on: Ident("t2".to_string()),
                     join_type: JoinType::Left,
@@ -544,7 +558,7 @@ mod test_parser {
         let input = "select a from t1 where a < 100";
         let expected: Program = vec![Stmt::SelectStmt {
             select: Clause::SelectClause(vec![Expr::IdentExpr(Ident("a".to_string()))]),
-            from: Clause::FromClause(Ident("t1".to_string()), None),
+            from: Clause::FromClause(vec![Ident("t1".to_string())], None),
             condition: Some(Clause::WhereClause(vec![Expr::InfixExpr(
                 Infix::Lt,
                 Box::new(Expr::IdentExpr(Ident("a".to_string()))),
@@ -561,7 +575,7 @@ mod test_parser {
         let input = "select a from t1 where a like '%foo%'";
         let expected: Program = vec![Stmt::SelectStmt {
             select: Clause::SelectClause(vec![Expr::IdentExpr(Ident("a".to_string()))]),
-            from: Clause::FromClause(Ident("t1".to_string()), None),
+            from: Clause::FromClause(vec![Ident("t1".to_string())], None),
             condition: Some(Clause::WhereClause(vec![Expr::InfixExpr(
                 Infix::Like,
                 Box::new(Expr::IdentExpr(Ident("a".to_string()))),
@@ -578,7 +592,7 @@ mod test_parser {
         let input = "select a from t1 where a < 100 and b > 100";
         let expected: Program = vec![Stmt::SelectStmt {
             select: Clause::SelectClause(vec![Expr::IdentExpr(Ident("a".to_string()))]),
-            from: Clause::FromClause(Ident("t1".to_string()), None),
+            from: Clause::FromClause(vec![Ident("t1".to_string())], None),
             condition: Some(Clause::WhereClause(vec![
                 Expr::InfixExpr(
                     Infix::Lt,
@@ -602,7 +616,7 @@ mod test_parser {
         let input = "select a from t1 where (a < 100) and (b > 100)";
         let expected: Program = vec![Stmt::SelectStmt {
             select: Clause::SelectClause(vec![Expr::IdentExpr(Ident("a".to_string()))]),
-            from: Clause::FromClause(Ident("t1".to_string()), None),
+            from: Clause::FromClause(vec![Ident("t1".to_string())], None),
             condition: Some(Clause::WhereClause(vec![
                 Expr::InfixExpr(
                     Infix::Lt,
@@ -646,7 +660,7 @@ mod test_parser {
         let input = "select a from t1 group by a;";
         let expected: Program = vec![Stmt::SelectStmt {
             select: Clause::SelectClause(vec![Expr::IdentExpr(Ident("a".to_string()))]),
-            from: Clause::FromClause(Ident("t1".to_string()), None),
+            from: Clause::FromClause(vec![Ident("t1".to_string())], None),
             condition: None,
             ordering: None,
             group_by: Some(Clause::GroupByClause(vec![Expr::IdentExpr(Ident(
@@ -661,7 +675,7 @@ mod test_parser {
         let input = "select a from t1 order by b, a desc";
         let expected: Program = vec![Stmt::SelectStmt {
             select: Clause::SelectClause(vec![Expr::IdentExpr(Ident("a".to_string()))]),
-            from: Clause::FromClause(Ident("t1".to_string()), None),
+            from: Clause::FromClause(vec![Ident("t1".to_string())], None),
             condition: None,
             ordering: Some(Clause::OrderByClause(vec![
                 (Expr::IdentExpr(Ident("b".to_string())), Ordering::Asc),

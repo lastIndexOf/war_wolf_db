@@ -27,6 +27,7 @@ syntax!(keyword_order_by, "ORDER BY", Token::OrderBy);
 syntax!(keyword_desc, "DESC", Token::Desc);
 syntax!(keyword_asc, "ASC", Token::Asc);
 syntax!(keyword_join, "JOIN", Token::Join);
+syntax!(keyword_cross, "CROSS", Token::Cross);
 syntax!(keyword_full, "FULL", Token::Full);
 syntax!(keyword_inner, "INNER", Token::Inner);
 syntax!(keyword_outer, "OUTER", Token::Outer);
@@ -66,6 +67,7 @@ fn lex_keyword(s: &str) -> nom::IResult<&str, Token> {
             keyword_asc,
             keyword_into,
             keyword_values,
+            keyword_cross,
             keyword_full,
             keyword_inner,
             keyword_outer,
