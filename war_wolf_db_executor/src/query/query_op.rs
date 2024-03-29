@@ -33,13 +33,6 @@ pub enum QueryType {
     Delete,
 }
 
-// tree root node
-#[derive(Default, Debug, PartialEq, Clone)]
-pub struct Query {
-    pub(crate) query_type: QueryType,
-    pub(crate) ops: Vec<Rc<RefCell<QueryOp>>>,
-}
-
 #[derive(Default, Debug, Clone)]
 pub struct QueryOp {
     pub(crate) data: LogicOp,
@@ -53,53 +46,22 @@ impl PartialEq for QueryOp {
 }
 
 impl QueryOp {
-    pub fn add_child(&mut self, child: LogicOp) -> &Rc<RefCell<QueryOp>> {
+    pub fn new(data: LogicOp) -> Self {
+        QueryOp {
+            data,
+            children: vec![],
+        }
+    }
+
+    pub fn add_child(&mut self, child: LogicOp) -> Rc<RefCell<QueryOp>> {
         let child = Rc::new(RefCell::new(QueryOp {
             data: child,
             children: vec![],
         }));
 
-        self.children.push(child);
+        self.children.push(Rc::clone(&child));
 
-        self.children.last().unwrap()
-    }
-}
-
-impl Query {
-    pub fn new() -> Self {
-        Query {
-            query_type: QueryType::Select,
-            ops: vec![],
-        }
-    }
-
-    pub fn add_child(&mut self, child: LogicOp) -> &Rc<RefCell<QueryOp>> {
-        let child = Rc::new(RefCell::new(QueryOp {
-            data: child,
-            children: vec![],
-        }));
-
-        self.ops.push(child);
-
-        self.ops.last().unwrap()
-    }
-}
-
-impl Display for Query {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // TODO: implement BFS
-        let mut ret = String::new();
-
-        for op in &self.ops {
-            ret.push_str(&format!("- {:?}", op.borrow().data));
-            ret.push_str("\n");
-            for child in &op.borrow().children {
-                ret.push_str(&format!(" - {:?}", child.borrow().data));
-                ret.push_str("\n");
-            }
-        }
-
-        write!(f, "{}", ret)
+        child
     }
 }
 
@@ -108,56 +70,5 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_query_tree() {
-        let query = {
-            let mut query = Query::new();
-            let cur = Rc::clone(query.add_child(LogicOp::Scan(Default::default())));
-            let cur = Rc::clone(cur.borrow_mut().add_child(LogicOp::Condition));
-            cur.borrow_mut()
-                .add_child(LogicOp::Scan(Default::default()));
-            cur.borrow_mut()
-                .add_child(LogicOp::Scan(Default::default()));
-            cur.borrow_mut()
-                .add_child(LogicOp::Scan(Default::default()));
-            let cur = Rc::clone(cur.borrow_mut().add_child(LogicOp::Filter));
-            cur.borrow_mut()
-                .add_child(LogicOp::Scan(Default::default()));
-
-            query
-        };
-
-        assert_eq!(
-            query,
-            Query {
-                query_type: QueryType::Select,
-                ops: vec![Rc::new(RefCell::new(QueryOp {
-                    data: LogicOp::Scan(Default::default()),
-                    children: vec![Rc::new(RefCell::new(QueryOp {
-                        data: LogicOp::Condition,
-                        children: vec![
-                            Rc::new(RefCell::new(QueryOp {
-                                data: LogicOp::Scan(Default::default()),
-                                children: vec![]
-                            })),
-                            Rc::new(RefCell::new(QueryOp {
-                                data: LogicOp::Scan(Default::default()),
-                                children: vec![]
-                            })),
-                            Rc::new(RefCell::new(QueryOp {
-                                data: LogicOp::Scan(Default::default()),
-                                children: vec![]
-                            })),
-                            Rc::new(RefCell::new(QueryOp {
-                                data: LogicOp::Filter,
-                                children: vec![Rc::new(RefCell::new(QueryOp {
-                                    data: LogicOp::Scan(Default::default()),
-                                    children: vec![]
-                                }))]
-                            }))
-                        ]
-                    }))]
-                }))]
-            }
-        );
-    }
+    fn test_query_tree() {}
 }

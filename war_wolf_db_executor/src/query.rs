@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use war_wolf_db_metadata::{
     func::func_exists,
     table::{columns_exists, table_exists},
@@ -7,12 +9,12 @@ use war_wolf_db_sql::parser::ast::{self, Clause, Ident, Literal};
 
 use crate::query::{
     operator::{CondVal, Condition, GroupBy},
-    query_op::FuncColumn,
+    query_op::{FuncColumn, QueryType},
 };
 
 use self::{
-    operator::{Filter, Join, Order, Scan},
-    query_op::{Column, Query, TableColumn},
+    operator::{Filter, Join, LogicOp, Order, Scan},
+    query_op::{Column, QueryOp, TableColumn},
 };
 
 pub mod operator;
@@ -21,8 +23,8 @@ mod query_op;
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct QueryBuilder {
     project_columns: Vec<Column>,
-    filter_operators: Vec<Filter>,
     scan_operators: Vec<Scan>,
+    filter_operators: Vec<Filter>,
     join_operator: Option<Join>,
     order_operator: Option<Order>,
     group_column: Option<GroupBy>,
@@ -33,8 +35,38 @@ impl QueryBuilder {
         todo!()
     }
 
-    pub fn build(self) -> Query {
-        todo!()
+    pub fn build(self) -> Option<QueryOp> {
+        let query = Rc::new(RefCell::new(QueryOp::new(LogicOp::Query(
+            QueryType::Select,
+        ))));
+
+        {
+            let mut builder = Rc::clone(&query);
+
+            if let Some(group) = self.group_column {
+                let op = builder.borrow_mut().add_child(LogicOp::Group(group));
+                builder = op;
+            }
+
+            if let Some(order) = self.order_operator {
+                let op = builder.borrow_mut().add_child(LogicOp::Sort(order));
+                builder = op;
+            }
+
+            if let Some(join) = self.join_operator {
+                let op = builder.borrow_mut().add_child(LogicOp::Join(join));
+                builder = op;
+            }
+
+            for filter in self.filter_operators {
+                // eg1: select * from t1, t2 where t1.a > t2.b;
+                // eg2: select * from t1 where 1 > 2;
+                // eg3: select * from t1 where t1.a > 100;
+                // TODO: impl filter
+            }
+        }
+
+        Rc::into_inner(query).map(|ele| ele.into_inner())
     }
 
     pub fn with_stmt(self, stmt: &ast::Stmt) -> Self {
@@ -577,6 +609,7 @@ impl QueryBuilder {
                         assert!(!args.is_empty());
                         self.group_column.as_mut().unwrap().aggregate_column =
                             Some(args[0].clone());
+                        break;
                     } else {
                         // TODO: add custom error
                         panic!("Function {} is not an aggregate function", func_name);

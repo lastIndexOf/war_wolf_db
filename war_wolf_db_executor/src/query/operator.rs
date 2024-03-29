@@ -3,16 +3,17 @@ use std::fmt::Debug;
 use war_wolf_db_metadata::table::Column;
 use war_wolf_db_sql::parser::ast::{self, Expr, Infix, JoinType};
 
-use super::query_op::{FuncColumn, TableColumn};
+use super::query_op::{QueryType, TableColumn};
 
 #[derive(Default, Debug, PartialEq, Clone)]
 pub enum LogicOp {
+    Query(QueryType),
     Scan(Scan),
-    Condition,
-    Filter,
-    Sort,
-    Group,
-    Join,
+    Condition(Condition),
+    Filter(Filter),
+    Sort(Order),
+    Group(GroupBy),
+    Join(Join),
     Insert,
     Delete,
     Update,
