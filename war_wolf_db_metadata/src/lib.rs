@@ -1,5 +1,6 @@
 use std::sync::OnceLock;
 
+use func::{Func, FuncMD};
 use table::{Column, DataType, Table, TableMD};
 
 pub mod builtin;
@@ -9,6 +10,7 @@ pub mod index;
 pub mod table;
 
 pub static TABLE: OnceLock<TableMD> = OnceLock::new();
+pub static FUNC: OnceLock<FuncMD> = OnceLock::new();
 
 pub fn init() {
     TABLE.get_or_init(|| {
@@ -48,6 +50,45 @@ pub fn init() {
         ]);
 
         table
+    });
+
+    FUNC.get_or_init(|| {
+        let mut func = FuncMD::new("mock func");
+
+        func.insert_many(vec![
+            Func {
+                func_name: "count".into(),
+                args_num: 1,
+                callback: Box::new(|inputs: Vec<String>| 1),
+                is_aggregate: true,
+            },
+            Func {
+                func_name: "sum".into(),
+                args_num: 1,
+                callback: Box::new(|inputs: Vec<String>| 1),
+                is_aggregate: true,
+            },
+            Func {
+                func_name: "max".into(),
+                args_num: 1,
+                callback: Box::new(|inputs: Vec<String>| 1),
+                is_aggregate: true,
+            },
+            Func {
+                func_name: "min".into(),
+                args_num: 1,
+                callback: Box::new(|inputs: Vec<String>| 1),
+                is_aggregate: true,
+            },
+            Func {
+                func_name: "avg".into(),
+                args_num: 1,
+                callback: Box::new(|inputs: Vec<String>| 1),
+                is_aggregate: true,
+            },
+        ]);
+
+        func
     });
 }
 

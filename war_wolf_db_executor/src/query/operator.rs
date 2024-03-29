@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use war_wolf_db_metadata::table::Column;
 use war_wolf_db_sql::parser::ast::{self, Expr, Infix, JoinType};
 
-use super::query_op::TableColumn;
+use super::query_op::{FuncColumn, TableColumn};
 
 #[derive(Default, Debug, PartialEq, Clone)]
 pub enum LogicOp {
@@ -147,5 +147,5 @@ pub struct Order {
 pub struct GroupBy {
     pub(crate) column: TableColumn,
     pub(crate) aggregate_fn: Option<String>,
-    pub(crate) aggregate_column: Option<String>,
+    pub(crate) aggregate_column: Option<TableColumn>,
 }

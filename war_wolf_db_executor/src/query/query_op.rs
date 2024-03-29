@@ -126,7 +126,38 @@ mod test {
             query
         };
 
-        println!("{}", query);
-        // assert_eq!(sort, RefCell::new(LogicOp::Sort));
+        assert_eq!(
+            query,
+            Query {
+                query_type: QueryType::Select,
+                ops: vec![Rc::new(RefCell::new(QueryOp {
+                    data: LogicOp::Scan(Default::default()),
+                    children: vec![Rc::new(RefCell::new(QueryOp {
+                        data: LogicOp::Condition,
+                        children: vec![
+                            Rc::new(RefCell::new(QueryOp {
+                                data: LogicOp::Scan(Default::default()),
+                                children: vec![]
+                            })),
+                            Rc::new(RefCell::new(QueryOp {
+                                data: LogicOp::Scan(Default::default()),
+                                children: vec![]
+                            })),
+                            Rc::new(RefCell::new(QueryOp {
+                                data: LogicOp::Scan(Default::default()),
+                                children: vec![]
+                            })),
+                            Rc::new(RefCell::new(QueryOp {
+                                data: LogicOp::Filter,
+                                children: vec![Rc::new(RefCell::new(QueryOp {
+                                    data: LogicOp::Scan(Default::default()),
+                                    children: vec![]
+                                }))]
+                            }))
+                        ]
+                    }))]
+                }))]
+            }
+        );
     }
 }

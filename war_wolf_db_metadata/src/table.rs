@@ -1,4 +1,4 @@
-use crate::{Metadata, TABLE};
+use crate::Metadata;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct TableMD {

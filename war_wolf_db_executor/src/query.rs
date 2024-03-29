@@ -1,10 +1,14 @@
 use war_wolf_db_metadata::{
+    func::func_exists,
     table::{columns_exists, table_exists},
-    Metadata, TABLE,
+    Metadata, FUNC, TABLE,
 };
 use war_wolf_db_sql::parser::ast::{self, Clause, Ident, Literal};
 
-use crate::query::operator::{CondVal, Condition, GroupBy};
+use crate::query::{
+    operator::{CondVal, Condition, GroupBy},
+    query_op::FuncColumn,
+};
 
 use self::{
     operator::{Filter, Join, Order, Scan},
@@ -217,7 +221,99 @@ impl QueryBuilder {
                             }
                         }
                         ast::Expr::FnCallExpr { name, arguments } => {
-                            // TODO: check if function exists
+                            let mut args = vec![];
+                            for arg in arguments {
+                                match arg {
+                                    ast::Expr::IdentExpr(Ident(ident)) => {
+                                        let mut founded = false;
+
+                                        for scan in &self.scan_operators {
+                                            let table_md = TABLE.get().unwrap();
+
+                                            if columns_exists(table_md, &scan.table_name, &ident) {
+                                                if founded {
+                                                    // TODO: add custom error
+                                                    panic!("Column {} is ambiguous", ident);
+                                                }
+
+                                                args.push(TableColumn {
+                                                    table_name: scan.table_name.clone(),
+                                                    column: ident.clone(),
+                                                });
+
+                                                founded = true;
+                                            }
+                                        }
+
+                                        if !founded {
+                                            // TODO: add custom error
+                                            panic!(
+                                                "Column {} does not exist in tables {}",
+                                                ident,
+                                                self.scan_operators
+                                                    .iter()
+                                                    .map(|scan| { &scan.table_name[..] })
+                                                    .collect::<Vec<_>>()
+                                                    .join(", ")
+                                            );
+                                        }
+                                    }
+                                    ast::Expr::DotExpr(tb, col) => {
+                                        match (tb.as_ref(), col.as_ref()) {
+                                            (
+                                                ast::Expr::IdentExpr(tb),
+                                                ast::Expr::IdentExpr(col),
+                                            ) => {
+                                                let table_name = tb.to_string();
+                                                let column_name = col.to_string();
+
+                                                if !columns_exists(
+                                                    &TABLE.get().unwrap(),
+                                                    &table_name,
+                                                    &column_name,
+                                                ) {
+                                                    // TODO: add custom error
+                                                    panic!(
+                                                        "Column {} does not exist in table {}",
+                                                        column_name, table_name
+                                                    );
+                                                }
+
+                                                args.push(TableColumn {
+                                                    table_name: table_name.to_string(),
+                                                    column: column_name.to_string(),
+                                                });
+                                            }
+                                            _ => {
+                                                // TODO: add custom error
+                                                panic!(
+                                                    "Invalid expression in select clause: {:?}",
+                                                    expr
+                                                );
+                                            }
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+
+                            if !func_exists(FUNC.get().unwrap(), &name.to_string()) {
+                                // TODO: add custom error
+                                panic!("Function {} does not exist in functions", name.to_string());
+                            }
+
+                            if args.is_empty() {
+                                // TODO: add custom error
+                                panic!(
+                                    "Function {} requires at least one argument",
+                                    name.to_string()
+                                );
+                            }
+
+                            table_cols.push(Column::FuncColumn(FuncColumn {
+                                func_name: name.to_string(),
+                                args,
+                            }));
                         }
                         _ => {
                             // TODO: add custom error
@@ -467,7 +563,27 @@ impl QueryBuilder {
             _ => {}
         }
 
-        // TODO: check if is aggregate function exits in project_columns
+        if self.group_column.is_some() {
+            for column in &self.project_columns {
+                if let Column::FuncColumn(func_col) = column {
+                    let FuncColumn { func_name, args } = func_col;
+                    if !FUNC
+                        .get()
+                        .unwrap()
+                        .select(|func| func.func_name == *func_name && func.is_aggregate)
+                        .is_empty()
+                    {
+                        self.group_column.as_mut().unwrap().aggregate_fn = Some(func_name.clone());
+                        assert!(!args.is_empty());
+                        self.group_column.as_mut().unwrap().aggregate_column =
+                            Some(args[0].clone());
+                    } else {
+                        // TODO: add custom error
+                        panic!("Function {} is not an aggregate function", func_name);
+                    }
+                }
+            }
+        }
 
         self
     }
