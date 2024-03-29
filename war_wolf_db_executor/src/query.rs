@@ -43,92 +43,6 @@ impl QueryBuilder {
         }
     }
 
-    pub fn build(mut self) -> Option<QueryOp> {
-        let query = Rc::new(RefCell::new(QueryOp::new(LogicOp::Query(
-            QueryType::Select,
-        ))));
-
-        {
-            let mut builder = Rc::clone(&query);
-
-            if let Some(group) = self.group_column {
-                let op = builder.borrow_mut().add_child(LogicOp::Group(group));
-                builder = op;
-            }
-
-            if let Some(order) = self.order_operator {
-                let op = builder.borrow_mut().add_child(LogicOp::Sort(order));
-                builder = op;
-            }
-
-            for filter in self.filter_operators {
-                // eg1: select * from t1, t2 where t1.a > t2.b;
-                // eg2: select * from t1 where 1 > 2;
-                // eg3: select * from t1 where t1.a > 100;
-                // TODO: impl filter
-                for cond in &filter.conditions {
-                    match (&cond.left, &cond.right) {
-                        (CondVal::Column(ref left), CondVal::Column(ref right)) => {
-                            // eg1
-                            if self.join_operator.is_none() {
-                                panic!("Join clause is required")
-                            }
-
-                            let join = self.join_operator.as_ref().unwrap();
-                            let join_tbs = [&join.left_table_name, &join.right_table_name];
-
-                            if !(join_tbs.contains(&&left.table_name)
-                                && join_tbs.contains(&&right.table_name))
-                            {
-                                panic!("Columns in condition must be from joined tables")
-                            }
-
-                            self.join_operator.as_mut().unwrap().join_type = JoinType::Inner;
-                            self.join_operator
-                                .as_mut()
-                                .unwrap()
-                                .condition
-                                .push(cond.clone());
-                        }
-                        (CondVal::Column(ref col), _) => {
-                            // eg3
-                            for scan in self.scan_operators.iter_mut() {
-                                if scan.table_name == col.table_name {
-                                    scan.conditions.push(cond.clone());
-                                }
-                            }
-                        }
-                        _ => {
-                            // eg2 暂不支持
-                            // TODO: add custom error
-                            panic!("Unsupported condition: {:?}", cond);
-                        }
-                    }
-                }
-            }
-
-            if let Some(join) = self.join_operator {
-                let left = join.left_table_name.clone();
-                let right = join.right_table_name.clone();
-
-                let op = builder.borrow_mut().add_child(LogicOp::Join(join));
-                builder = op;
-
-                for scan in self.scan_operators {
-                    if &scan.table_name == &left || &scan.table_name == &right {
-                        builder.borrow_mut().add_child(LogicOp::Scan(scan));
-                    }
-                }
-            } else {
-                for scan in self.scan_operators {
-                    builder.borrow_mut().add_child(LogicOp::Scan(scan));
-                }
-            }
-        }
-
-        Rc::into_inner(query).map(|ele| ele.into_inner())
-    }
-
     pub fn with_stmt(self, stmt: &ast::Stmt) -> Self {
         // assert!(matches!(stmt, ast::Stmt::SelectStmt { .. }));
 
@@ -685,6 +599,92 @@ impl QueryBuilder {
     fn optimize(&mut self) {
         // TODO: add scan operator to join operator as children
     }
+
+    pub fn build(mut self) -> Option<QueryOp> {
+        let query = Rc::new(RefCell::new(QueryOp::new(LogicOp::Query(
+            QueryType::Select,
+        ))));
+
+        {
+            let mut builder = Rc::clone(&query);
+
+            if let Some(group) = self.group_column {
+                let op = builder.borrow_mut().add_child(LogicOp::Group(group));
+                builder = op;
+            }
+
+            if let Some(order) = self.order_operator {
+                let op = builder.borrow_mut().add_child(LogicOp::Sort(order));
+                builder = op;
+            }
+
+            for filter in self.filter_operators {
+                // eg1: select * from t1, t2 where t1.a > t2.b;
+                // eg2: select * from t1 where 1 > 2;
+                // eg3: select * from t1 where t1.a > 100;
+                // TODO: impl filter
+                for cond in &filter.conditions {
+                    match (&cond.left, &cond.right) {
+                        (CondVal::Column(ref left), CondVal::Column(ref right)) => {
+                            // eg1
+                            if self.join_operator.is_none() {
+                                panic!("Join clause is required")
+                            }
+
+                            let join = self.join_operator.as_ref().unwrap();
+                            let join_tbs = [&join.left_table_name, &join.right_table_name];
+
+                            if !(join_tbs.contains(&&left.table_name)
+                                && join_tbs.contains(&&right.table_name))
+                            {
+                                panic!("Columns in condition must be from joined tables")
+                            }
+
+                            self.join_operator.as_mut().unwrap().join_type = JoinType::Inner;
+                            self.join_operator
+                                .as_mut()
+                                .unwrap()
+                                .condition
+                                .push(cond.clone());
+                        }
+                        (CondVal::Column(ref col), _) => {
+                            // eg3
+                            for scan in self.scan_operators.iter_mut() {
+                                if scan.table_name == col.table_name {
+                                    scan.conditions.push(cond.clone());
+                                }
+                            }
+                        }
+                        _ => {
+                            // eg2 暂不支持
+                            // TODO: add custom error
+                            panic!("Unsupported condition: {:?}", cond);
+                        }
+                    }
+                }
+            }
+
+            if let Some(join) = self.join_operator {
+                let left = join.left_table_name.clone();
+                let right = join.right_table_name.clone();
+
+                let op = builder.borrow_mut().add_child(LogicOp::Join(join));
+                builder = op;
+
+                for scan in self.scan_operators {
+                    if &scan.table_name == &left || &scan.table_name == &right {
+                        builder.borrow_mut().add_child(LogicOp::Scan(scan));
+                    }
+                }
+            } else {
+                for scan in self.scan_operators {
+                    builder.borrow_mut().add_child(LogicOp::Scan(scan));
+                }
+            }
+        }
+
+        Rc::into_inner(query).map(|ele| ele.into_inner())
+    }
 }
 
 #[cfg(test)]
@@ -729,6 +729,37 @@ mod test {
                 children: vec![],
             }))],
         };
+        compare_input_with_query(input, expected);
+    }
+
+    #[test]
+    fn test_where_operator() {
+        // TODO: add query op fmt and fix this test
+        init();
+
+        let input = "select t1.name, t2.age from t1 where t1.id = 1;";
+        let expected = QueryOp {
+            data: LogicOp::Query(QueryType::Select),
+            children: vec![
+                Rc::new(RefCell::new(QueryOp {
+                    data: LogicOp::Scan(Scan {
+                        table_name: "t1".to_owned(),
+                        columns: vec![],
+                        conditions: vec![],
+                    }),
+                    children: vec![],
+                })),
+                Rc::new(RefCell::new(QueryOp {
+                    data: LogicOp::Scan(Scan {
+                        table_name: "t2".to_owned(),
+                        columns: vec![],
+                        conditions: vec![],
+                    }),
+                    children: vec![],
+                })),
+            ],
+        };
+
         compare_input_with_query(input, expected);
     }
 }
